@@ -1,5 +1,7 @@
 # <img src="public/icon.png" width="32" height="32" align="center" /> Relay Client Web (React + TypeScript)
 
+**HTTP protocol (planned change):** **`X-Relay-Branch`** will be **removed** — encode repo/branch only via **`Host`** (`{repo}.{node}` or `{repo}{DELIM}{branch-slug}.{node}`). See **[`../relay-server/docs/DEPLOY_WEB_AND_CI.md`](../relay-server/docs/DEPLOY_WEB_AND_CI.md)** §8, §11. Until then, `src/plugins/web/index.ts` may still set legacy headers; track removal with relay-server.
+
 This template provides a minimal setup to get React working in esbuild with some ESLint rules.
 
 Currently, two official plugins are available:
