@@ -10,6 +10,8 @@
 
 Design docs: **[`../relay-gateway/docs/RELAY_CLIENT_WEB_SHELL.md`](../relay-gateway/docs/RELAY_CLIENT_WEB_SHELL.md)**.
 
+**Embed / full-page hook (no default chrome):** server may intercept GETs and return **HTML** that loads a **minimal** client bundle with a **preset** gateway and full-viewport **`hooks/client/get.jsx`** — see **[`../relay-gateway/docs/RELAY_EMBED_CLIENT_GET_INTERCEPT.md`](../relay-gateway/docs/RELAY_EMBED_CLIENT_GET_INTERCEPT.md)**.
+
 ### Local verification (pre-manual QA)
 
 One command before testing in the browser:
