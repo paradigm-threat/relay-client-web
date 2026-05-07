@@ -9,7 +9,6 @@
       "DOM.Iterable"
     ],
     "module": "ESNext",
-    "types": [],
     "skipLibCheck": true,
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -31,10 +30,23 @@
       ],
       "@clevertree/shared/*": [
         "./src/shared/*"
+      ],
+      "@clevertree/themed-styler": [
+        "./src/shims/themed-styler.ts"
+      ],
+      "@clevertree/hook-transpiler": [
+        "./src/shims/hook-transpiler.tsx"
+      ],
+      "@clevertree/markdown": [
+        "./src/shims/markdown.tsx"
       ]
     }
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/jsx-test.ts",
+    "src/tests/**/*"
   ]
 }

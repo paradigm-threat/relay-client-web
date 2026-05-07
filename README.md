@@ -2,6 +2,33 @@
 
 **HTTP protocol (planned change):** **`X-Relay-Branch`** will be **removed** — encode repo/branch only via **`Host`** (`{repo}.{node}` or `{repo}{DELIM}{branch-slug}.{node}`). See **[`../relay-server/docs/DEPLOY_WEB_AND_CI.md`](../relay-server/docs/DEPLOY_WEB_AND_CI.md)** §8, §11. Until then, `src/plugins/web/index.ts` may still set legacy headers; track removal with relay-server.
 
+## Universal Relay shell (WASM + md2jsx)
+
+1. **`npm run build:wasm`** — builds `relay-runtime` with **wasm-pack** into `src/wasm/relay_runtime_pkg/` (gitignored; run after cloning).
+2. **`npm run build`** — bundles the app and copies the WASM pkg to `dist/wasm/relay_runtime_pkg/`.
+3. **`RELAY_PUBLIC_FILES_BASE`** in `.env` (see `.env.example`) sets the default **files mirror** for `fetchContent`.
+
+Design docs: **[`../relay-gateway/docs/RELAY_CLIENT_WEB_SHELL.md`](../relay-gateway/docs/RELAY_CLIENT_WEB_SHELL.md)**.
+
+### Local verification (pre-manual QA)
+
+One command before testing in the browser:
+
+- **`npm run verify:local`** — **`preflight`** (WASM glue present), **`eslint`**, **`typecheck`**, **`npm test`**, **`npm run build`**.
+- **`PREFLIGHT_STRICT=1 npm run preflight`** — exits non-zero if `src/wasm/relay_runtime_pkg/` is missing (run **`npm run build:wasm`** first).
+- Serve static **`dist/`** through relay-server: **`npm run serve:relay`** — uses **`RELAY_SERVER_BIN`** (default `relay-server`), **`RELAY_REPO_ROOT`**, **`RELAY_STATIC_PORT`** (default `8080`).
+
+Then open **`http://127.0.0.1:5173`** with **`npm run dev`**, or run browser tests:
+
+### Playwright (remote relay + WASM smoke)
+
+- **`npx playwright install chromium`** once (browser binaries).
+- **`npm run test:e2e`** — starts **`npm run dev`**, runs **`e2e/relay-remote.spec.ts`**: home peer list, optional **remote relay open-tab** flow when a master is **Online**, and **Test** tab **`markdown_to_ast_json`** visibility.
+- **`E2E_RELAY_HOST`** — substring for which peer row to use (default: `node-dfw1.relaynet.online`).
+- **`PW_NO_SERVER=1`** — use an already-running dev server; set **`PLAYWRIGHT_BASE_URL`** if not `http://127.0.0.1:5173`.
+
+**Parity note:** repo tabs still use **`ThemedHookRenderer` stub** until CleverScript hook VDOM is fully wired; **server discovery** is fixed: **`OPTIONS /`** must return repos, and the client and gateway default the GET hook to **`hooks/client/get.jsx`** (`/hooks/client/get.jsx`). Repo hooks should import **`MarkdownRenderer`** from **`@clevertree/markdown`** (maps to the host shim over **relay-runtime** md2jsx WASM). Full multi-file browsing like the public Paradigm Threat site follows that work. WASM markdown parsing is validated on the **Test** tab.
+
 This template provides a minimal setup to get React working in esbuild with some ESLint rules.
 
 Currently, two official plugins are available:

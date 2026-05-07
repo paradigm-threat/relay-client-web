@@ -1,9 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAppState } from '../state/store'
 import { RepoFetchProvider } from '../context/RepoFetchContext'
 import HookRenderer from './ThemedHookRenderer'
-import { ErrorBoundary } from '@clevertree/hook-transpiler'
-import { TSDiv, unifiedBridge } from '@clevertree/themed-styler'
+import { TSDiv } from '@clevertree/themed-styler'
+import {
+  applyDefaultClientGetHook,
+  repoRelativeHookPathToUrlPath,
+} from '../constants/relayClientDefaults'
 
 interface RepoBrowserProps {
     tabId: string
@@ -36,6 +39,22 @@ function normalizeHostUrl(host: string): string {
     return `https://${host}` // No port, assume https
 }
 
+function splitHookUrl(hookUrl: string): { host: string; hookPath: string } {
+    try {
+        const url = new URL(hookUrl)
+        const HOOK_SEGMENT = '/hooks/'
+        const idx = url.pathname.indexOf(HOOK_SEGMENT)
+        const basePath = idx >= 0 ? url.pathname.slice(0, idx) : ''
+        const path = idx >= 0 ? url.pathname.slice(idx) : url.pathname
+        const hookPath = `${path}${url.search || ''}` || '/hooks/client/get.jsx'
+        const host = `${url.origin}${basePath}`
+        return { host, hookPath }
+    } catch {
+        // Fallback: treat entire URL as host and use default hook path
+        return { host: hookUrl, hookPath: '/hooks/client/get.jsx' }
+    }
+}
+
 export function RepoBrowser({ tabId }: RepoBrowserProps) {
     const tab = useAppState((s) => s.tabs.find((t) => t.id === tabId))
     const updateTab = useAppState((s) => s.updateTab)
@@ -49,6 +68,8 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
     const [isPulling, setIsPulling] = useState(false)
     const [pullResult, setPullResult] = useState<any>(null)
     const [showUpdateModal, setShowUpdateModal] = useState(false)
+    /** Bumps to re-run OPTIONS/content load without a full page reload */
+    const [refreshEpoch, setRefreshEpoch] = useState(0)
     // Client is now dumb: search and navigation UI are moved into repo layout
     // Keep minimal state only for hook/file rendering
 
@@ -93,12 +114,22 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
 
     // Refresh page after update
     const handleRefresh = () => {
-        window.location.reload()
+        setRefreshEpoch((n) => n + 1)
     }
 
     useEffect(() => {
-        if (!tab || !tab.host) return
-            ;
+        if (!tab) return
+
+        // Direct hook tabs skip OPTIONS/discovery entirely
+        if (tab.directHookUrl) {
+            setLoading(false)
+            setError(null)
+            setErrorDetails(null)
+            return
+        }
+
+        if (!tab.host) return
+
         (async () => {
             try {
                 const opts = await loadOptions()
@@ -111,7 +142,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                 console.error('[RepoBrowser] init failed:', e)
             }
         })()
-    }, [tab?.host, tab?.path])
+    }, [tab?.host, tab?.path, tab?.directHookUrl, refreshEpoch])
 
     const loadOptions = async (): Promise<OptionsInfo | null> => {
         if (!tab || !tab.host) return null
@@ -161,18 +192,16 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                 return null
             }
 
-            setOptionsInfo(options)
+            const merged = applyDefaultClientGetHook(options as OptionsInfo)
+            setOptionsInfo(merged)
             diagnostics.parsedFrom = parsedFrom
-            const branches = options.repos?.[0]?.branches ? Object.keys(options.repos[0].branches) : undefined
+            const branches = merged.repos?.[0]?.branches ? Object.keys(merged.repos[0].branches) : undefined
             updateTab(tab.id, (t) => ({
                 ...t,
                 branches,
-                reposList: options.repos?.map((r) => r.name),
+                reposList: merged.repos?.map((r) => r.name),
             }))
-            if (!options?.client?.hooks?.get?.path) {
-                console.error('[RepoBrowser] Discovery missing client hook paths', { options, diagnostics })
-            }
-            return options
+            return merged
         } catch (err) {
             console.error('Failed to load options:', err)
             setError('Failed to load repository OPTIONS')
@@ -189,10 +218,10 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
 
         try {
             // If we don't have options, abort with a clearer error and diagnostics
-            const info = opts || optionsInfo
-            if (!info || !info.client) {
-                setError('Repository discovery did not return client hooks. OPTIONS may be blocked or empty; attempted GET fallback. See details for diagnostics.')
-                setErrorDetails({ phase: 'render', reason: 'no-options', optionsInfo })
+            const raw = opts ?? optionsInfo
+            if (!raw || !Array.isArray(raw.repos) || raw.repos.length === 0) {
+                setError('Repository discovery did not return usable repo metadata. See details for diagnostics.')
+                setErrorDetails({ phase: 'render', reason: 'no-options', optionsInfo: raw })
                 return
             }
 
@@ -220,50 +249,64 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
      */
     // Module path resolution and hook helpers are provided inside HookRenderer now.
 
-
-
-    if (!tab) {
-        return <div className="repo-browser">Tab not found</div>
-    }
-
-    const repoBaseUrl = useMemo(() => tab?.host ? normalizeHostUrl(tab.host) : '/', [tab?.host])
-    const providerResolve = useMemo(() => (p: string) => {
+    const repoBaseUrl = useMemo(() => (tab?.host ? normalizeHostUrl(tab.host) : '/'), [tab?.host])
+    const providerResolve = useMemo(
+      () => (p: string) => {
         const path = p.startsWith('/') ? p.slice(1) : p
         return new URL(path, repoBaseUrl).toString()
-    }, [repoBaseUrl])
-    const providerFetch = useMemo(() => (input: any, init?: RequestInit) => {
+      },
+      [repoBaseUrl]
+    )
+    const providerFetch = useMemo(
+      () => (input: any, init?: RequestInit) => {
         if (typeof input === 'string') {
-            const isAbs = /^(https?:)?\/\//i.test(input)
-            return fetch(isAbs ? input : providerResolve(input), init)
+          const isAbs = /^(https?:)?\/\//i.test(input)
+          return fetch(isAbs ? input : providerResolve(input), init)
         }
         if (input instanceof URL) return fetch(input.toString(), init)
         return fetch(input, init)
-    }, [providerResolve])
+      },
+      [providerResolve]
+    )
 
-    const providerFetchJson = useMemo(() => async (path: string, init?: RequestInit) => {
-        const url = providerResolve(path)
+    const providerFetchJson = useMemo(
+      () => async (p: string, init?: RequestInit) => {
+        const url = providerResolve(p)
         const resp = await fetch(url, init)
         const ct = (resp.headers.get('content-type') || '').toLowerCase()
         const text = await resp.text()
         const mkErr = (message: string) => {
-            const e: any = new Error(message)
-            e.name = 'RepoFetchJsonError'
-            e.details = { url, status: resp.status, ok: resp.ok, contentType: ct, sample: text.slice(0, 256) }
-            return e
+          const err = new Error(message) as Error & {
+            name: string
+            details: Record<string, unknown>
+          }
+          err.name = 'RepoFetchJsonError'
+          err.details = { url, status: resp.status, ok: resp.ok, contentType: ct, sample: text.slice(0, 256) }
+          return err
         }
         if (!resp.ok) throw mkErr(`HTTP ${resp.status} while fetching JSON: ${url}`)
         if (!ct.includes('application/json')) {
-            // Heuristic: many proxies return index.html (text/html)
-            if (text.trim().startsWith('<')) {
-                throw mkErr('Expected JSON but received HTML (likely SPA fallback)')
-            }
+          if (text.trim().startsWith('<')) {
+            throw mkErr('Expected JSON but received HTML (likely SPA fallback)')
+          }
         }
         try {
-            return JSON.parse(text)
+          return JSON.parse(text)
         } catch (err) {
-            throw mkErr(`Failed to parse JSON: ${(err as any)?.message || String(err)}`)
+          throw mkErr(`Failed to parse JSON: ${(err as any)?.message || String(err)}`)
         }
-    }, [providerResolve])
+      },
+      [providerResolve]
+    )
+
+    const resolvedHookUrlPath = useMemo(() => {
+        const p = optionsInfo?.client?.hooks?.get?.path ?? 'hooks/client/get.jsx'
+        return repoRelativeHookPathToUrlPath(p)
+    }, [optionsInfo])
+
+    if (!tab) {
+      return <div className="repo-browser">Tab not found</div>
+    }
 
     return (
         <RepoFetchProvider value={{
@@ -273,8 +316,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             fetchJson: providerFetchJson
         }}>
             <TSDiv className="flex flex-col h-full">
-                <ErrorBoundary onElement={(tag, props) => unifiedBridge.registerUsage(tag, props)}>
-                    <TSDiv className="flex-1 overflow-y-auto">
+                <TSDiv className="flex-1 overflow-y-auto">
 
                         {loading &&
                             <TSDiv className="flex items-center justify-center h-full">Loading...</TSDiv>}
@@ -479,7 +521,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                 <TSDiv className="mt-4 text-sm opacity-80">
                                     <TSDiv className="font-semibold mb-2">Troubleshooting:</TSDiv>
                                     <TSDiv tag="ul" className="list-disc pl-5 space-y-1">
-                                        <TSDiv tag="li">Verify <TSDiv tag="code">.relay.yaml</TSDiv> contains <TSDiv tag="code">client.hooks.get.path</TSDiv> and <TSDiv tag="code">client.hooks.query.path</TSDiv>.
+                                        <TSDiv tag="li">Prefer explicit paths in <TSDiv tag="code">.relay.yaml</TSDiv> under <TSDiv tag="code">client.hooks</TSDiv> (optional on current gateways). If omitted, the server and client assume the default GET hook <TSDiv tag="code">hooks/client/get.jsx</TSDiv>. Add <TSDiv tag="code">client.hooks.query.path</TSDiv> when you use a search/query hook.
                                         </TSDiv>
                                         <TSDiv tag="li">Ensure the hook module exports a default function: <TSDiv tag="code">export default
                                             async
@@ -504,19 +546,29 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
 
                                 <TSDiv
                                     tag="button"
-                                    onClick={loadContent}
+                                    onClick={() => {
+                                        setError(null)
+                                        setErrorDetails(null)
+                                        setRefreshEpoch((n) => n + 1)
+                                    }}
                                     className="px-4 py-2 bg-red-600 text-white border-none rounded cursor-pointer mt-4 hover:bg-red-700">Try
                                     Again
                                 </TSDiv>
                             </TSDiv>
                         )}
 
-                        {!loading && (
-                            tab?.host ? <HookRenderer host={tab.host} /> : null
+                        {!loading && !error && (
+                            tab?.directHookUrl ? (
+                                (() => {
+                                    const { host, hookPath } = splitHookUrl(tab.directHookUrl!)
+                                    return <HookRenderer host={host} hookPath={hookPath} />
+                                })()
+                            ) : (
+                                tab?.host ? <HookRenderer host={tab.host} hookPath={resolvedHookUrlPath} /> : null
+                            )
                         )}
                         {/* No placeholders: if the hook didn't render and there's no error, render nothing */}
                     </TSDiv>
-                </ErrorBoundary>
 
                 {/* Footer with version and git pull button */}
                 <TSDiv

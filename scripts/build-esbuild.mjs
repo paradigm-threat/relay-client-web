@@ -5,6 +5,9 @@ import path from 'path'
 import express from 'express'
 import http from 'http'
 import { createRequire } from 'node:module'
+import postcss from 'postcss'
+import tailwindcss from 'tailwindcss'
+import autoprefixer from 'autoprefixer'
 
 const root = path.resolve(path.join(import.meta.dirname || path.dirname(new URL(import.meta.url).pathname), '..'))
 const srcDir = path.join(root, 'src')
@@ -83,31 +86,14 @@ function copyWasmToAssets() {
     fs.mkdirSync(assetsDir, { recursive: true })
   }
 
-  // Copy WASM files from node_modules to assets directory
-  // The bundled JS files use import.meta.url to resolve WASM files relatively
-  const wasmSources = [
-    {
-      dir: path.join(root, 'node_modules/@clevertree/hook-transpiler/wasm'),
-      files: ['relay_hook_transpiler_bg.wasm']
-    },
-    {
-      dir: path.join(root, 'node_modules/@clevertree/themed-styler/wasm'),
-      files: ['themed_styler_bg.wasm']
-    }
-  ]
-
-  for (const { dir, files } of wasmSources) {
-    if (fs.existsSync(dir)) {
-      for (const file of files) {
-        const src = path.join(dir, file)
-        const dest = path.join(assetsDir, file)
-        try {
-          fs.copyFileSync(src, dest)
-        } catch (e) {
-          console.warn(`[esbuild] Failed to copy WASM ${src}: ${e.message}`)
-        }
-      }
-    }
+  const wasmPkg = path.join(srcDir, 'wasm', 'relay_runtime_pkg')
+  if (fs.existsSync(wasmPkg)) {
+    const outWasm = path.join(outDir, 'wasm', 'relay_runtime_pkg')
+    fs.mkdirSync(outWasm, { recursive: true })
+    fs.cpSync(wasmPkg, outWasm, { recursive: true, force: true })
+    console.log('[esbuild] Copied relay_runtime_pkg (WASM) to dist/wasm/relay_runtime_pkg')
+  } else {
+    console.warn('[esbuild] relay_runtime_pkg missing — run: npm run build:wasm')
   }
 }
 
@@ -148,10 +134,11 @@ export async function bundle({ serve = false } = {}) {
   const reactDomEntry = req.resolve('react-dom')
   const reactDomClientEntry = req.resolve('react-dom/client')
 
+  const tailwindConfigPath = path.join(root, 'tailwind.config.cjs')
+
   const opts = {
     entryPoints: {
       'main': path.join(srcDir, 'main.tsx'),
-      'index': path.join(srcDir, 'assets', 'index.css'),
     },
     outdir: assetsDir,
     publicPath: '/assets/',
@@ -179,6 +166,30 @@ export async function bundle({ serve = false } = {}) {
       ...importMetaDefines,
     },
     plugins: [
+      {
+        name: 'postcss-tailwind',
+        setup(build) {
+          build.onLoad({ filter: /[/\\]assets[/\\]index\.css$/ }, async (args) => {
+            const source = await fs.promises.readFile(args.path, 'utf8')
+            const result = await postcss([
+              tailwindcss(tailwindConfigPath),
+              autoprefixer,
+            ]).process(source, { from: args.path })
+            return { contents: result.css, loader: 'css' }
+          })
+        },
+      },
+      {
+        name: 'alias-clevertree-shims',
+        setup(build) {
+          const themed = path.join(srcDir, 'shims', 'themed-styler.ts')
+          const transpiler = path.join(srcDir, 'shims', 'hook-transpiler.tsx')
+          const markdown = path.join(srcDir, 'shims', 'markdown.tsx')
+          build.onResolve({ filter: /^@clevertree\/themed-styler$/ }, () => ({ path: themed }))
+          build.onResolve({ filter: /^@clevertree\/hook-transpiler$/ }, () => ({ path: transpiler }))
+          build.onResolve({ filter: /^@clevertree\/markdown$/ }, () => ({ path: markdown }))
+        }
+      },
       // Force a single React instance across workspace packages
       {
         name: 'force-react-singleton',
@@ -250,16 +261,36 @@ export async function bundle({ serve = false } = {}) {
     app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*')
       res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+      res.header('Access-Control-Expose-Headers', 'X-Hook-Path')
+      
+      // Inject X-Hook-Path for discovery
+      if (req.method === 'OPTIONS' || req.path === '/') {
+        res.header('X-Hook-Path', '/hooks/client/get.jsx')
+      }
+
+      if (req.method === 'OPTIONS') {
+        res.sendStatus(204)
+        return
+      }
       next()
     })
 
-    // Serve /hooks/* directly from public/hooks/ (live updates without rebuild)
-    const publicHooksDir = path.join(root, 'public', 'hooks')
-    if (fs.existsSync(publicHooksDir)) {
-      app.use('/hooks', express.static(publicHooksDir, {
+    // Serve /hooks/* from relay-template/hooks/ 
+    const templateHooksDir = path.join(root, '..', 'relay-template', 'hooks')
+    if (fs.existsSync(templateHooksDir)) {
+      app.use('/hooks', express.static(templateHooksDir, {
         dotfiles: 'allow'
       }))
-      console.log('[esbuild] Serving /hooks/* from public/hooks/ (live)')
+      console.log('[esbuild] Serving /hooks/* from relay-template/hooks/')
+    } else {
+      // Fallback to local public/hooks
+      const publicHooksDir = path.join(root, 'public', 'hooks')
+      if (fs.existsSync(publicHooksDir)) {
+        app.use('/hooks', express.static(publicHooksDir, {
+          dotfiles: 'allow'
+        }))
+        console.log('[esbuild] Serving /hooks/* from public/hooks/ (live)')
+      }
     }
 
     // Serve the main app from dist/ 
@@ -282,7 +313,7 @@ export async function bundle({ serve = false } = {}) {
     copyHooksToTemplate()
 
     const server = http.createServer(app)
-    const port = 8001
+    const port = 5173
     server.listen(port, '0.0.0.0', () => {
       console.log(`[esbuild] serving at http://localhost:${port}`)
     })
