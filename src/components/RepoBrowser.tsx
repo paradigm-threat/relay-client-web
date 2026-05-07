@@ -118,7 +118,10 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
     }
 
     useEffect(() => {
-        if (!tab) return
+        if (!tab) {
+            setLoading(false)
+            return
+        }
 
         // Direct hook tabs skip OPTIONS/discovery entirely
         if (tab.directHookUrl) {
@@ -128,7 +131,11 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             return
         }
 
-        if (!tab.host) return
+        if (!tab.host) {
+            setLoading(false)
+            setError('This tab has no relay host; close it and open a peer from Home.')
+            return
+        }
 
         (async () => {
             try {
@@ -557,7 +564,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                             </TSDiv>
                         )}
 
-                        {!loading && !error && (
+                        {!loading && (
                             tab?.directHookUrl ? (
                                 (() => {
                                     const { host, hookPath } = splitHookUrl(tab.directHookUrl!)

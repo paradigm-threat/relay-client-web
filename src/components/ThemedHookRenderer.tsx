@@ -11,13 +11,13 @@ export interface ThemedHookRendererProps {
 
 export default function ThemedHookRenderer ({ host, hookPath = '/hooks/client/get.jsx' }: ThemedHookRendererProps) {
   return (
-    <TSDiv className="p-4 text-sm text-[var(--text-secondary)] space-y-2">
+    <div data-testid="relay-hook-shell" className="p-4 text-sm text-[var(--text-secondary)] space-y-2">
       <TSDiv tag="p">
         <strong>Hook shell (stub):</strong> host <code>{host}</code> path <code>{hookPath}</code>
       </TSDiv>
       <TSDiv tag="p" className="text-xs">
         Full <code>run_hook_with_host</code> + VDOM application will replace this placeholder. Use the Test tab for relay-runtime + md2jsx smoke tests.
       </TSDiv>
-    </TSDiv>
+    </div>
   )
 }
