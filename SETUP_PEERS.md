@@ -9,8 +9,8 @@ The web client automatically exposes public environment variables prefixed with 
 Set the master peer list in `.env`:
 
 ```dotenv
-# Semicolon-separated list of relay peer URLs (e.g., https://relay1.example.com;https://relay2.example.com)
-RELAY_PUBLIC_MASTER_PEER_LIST="https://node-dfw1.relaynet.online;https://node-dfw2.relaynet.online"
+# Semicolon-separated list of relay master peers (standard fleet defaults; same three as relay-gateway):
+RELAY_PUBLIC_MASTER_PEER_LIST="https://atlanta2.relaygateway.net"
 ```
 
 ### Build-time Injection
@@ -20,11 +20,11 @@ When you build the project (`npm run build`), the esbuild configuration:
 2. Extracts all `RELAY_PUBLIC_*` variables
 3. Injects them into `import.meta.env` definitions in the bundle
 
-This makes them accessible in code:
+When the default peer list in the bundle changes, clear **`localStorage`** for this origin (or remove **`relay_peers`**) so **`RELAY_PUBLIC_MASTER_PEER_LIST`** / the new built-in default applies.
 
 ```typescript
 const peerList = import.meta.env.RELAY_PUBLIC_MASTER_PEER_LIST
-// => "https://node-dfw1.relaynet.online;https://node-dfw2.relaynet.online"
+// => "https://atlanta2.relaygateway.net"
 ```
 
 ### Build Process
@@ -45,8 +45,7 @@ Example output:
 ```typescript
 // From getPeersFromEnvironment() in PeersView.tsx
 [
-  "https://node-dfw1.relaynet.online",
-  "https://node-dfw2.relaynet.online"
+  "https://atlanta2.relaygateway.net"
 ]
 ```
 
@@ -56,5 +55,5 @@ Build and check that peer list is in bundle:
 
 ```bash
 npm run build
-grep "node-dfw1" dist/assets/main.js  # Should find the URLs
+grep "atlanta2.relaygateway" dist/assets/main.js  # Should find the URLs
 ```

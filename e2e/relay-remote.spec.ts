@@ -3,14 +3,14 @@
  * Requires network access from the machine running Playwright.
  *
  * Env:
- *   E2E_RELAY_HOST   — substring to match a peer card (default: atlanta3.relaygateway.net)
+ *   E2E_RELAY_HOST   — substring to match a peer card (default: atlanta2.relaygateway.net)
  *   PW_NO_SERVER=1   — do not spawn `npm run dev`; use existing server at PLAYWRIGHT_BASE_URL
  *
  * Run: npm run test:e2e
  */
 import { test, expect } from '@playwright/test'
 
-const RELAY_SUBSTR = process.env.E2E_RELAY_HOST ?? 'atlanta3.relaygateway.net'
+const RELAY_SUBSTR = process.env.E2E_RELAY_HOST ?? 'atlanta2.relaygateway.net'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -57,9 +57,9 @@ test.describe('Relay client — remote masters', () => {
     await peerCard.getByRole('button', { name: /Open →/ }).click()
 
     await expect(page.getByTestId('relay-hook-shell')).toBeVisible({ timeout: 60_000 })
-    await expect(page.getByTestId('relay-hook-shell').getByText(/hooks\/client\/get\.jsx/)).toBeVisible({
-      timeout: 10_000,
-    })
+    await expect(page.getByText('Hook shell (stub)')).toHaveCount(0)
+    await expect(page.getByTestId('relay-hook-shell').locator('.relay-hook-mount')).toBeVisible()
+
     await expect(page.getByText(RELAY_SUBSTR, { exact: false }).first()).toBeVisible()
 
     /** Path / repo tab title usually mirrors the host */
@@ -86,7 +86,7 @@ test.describe('Markdown / WASM (local smoke)', () => {
     await resetAppStorage(page)
   })
 
-  test('Test tab shows md2jsx / WASM AST output', async ({ page }) => {
+  test('Test tab shows md2ast / WASM AST output', async ({ page }) => {
     await page.locator('span[title="Test"]').click()
 
     await expect(page.getByText('markdown_to_ast_json').first()).toBeVisible({ timeout: 45_000 })

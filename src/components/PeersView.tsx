@@ -34,7 +34,7 @@ export function PeersView({onPeerPress}: PeersViewProps) {
                     repos: result.repos,
                     isProbing: false,
                 }))
-            } catch (e) {
+            } catch {
                 updatePeer(host, (p) => ({
                     ...p,
                     isProbing: false,
@@ -144,7 +144,7 @@ export function PeersView({onPeerPress}: PeersViewProps) {
         <TSDiv className="flex flex-col h-full border-r">
             <TSDiv className="p-4 border-b">
                 <TSDiv className="flex items-center gap-3 mb-4">
-                    <TSDiv tag="img" src="/icon.png" alt="Relay" width="24" height="24" className="flex-shrink-0"/>
+                    <img src="/icon.png" alt="Relay" width={24} height={24} className="flex-shrink-0" />
                     <TSDiv tag="h2" className="m-0 text-xl font-semibold">Relay</TSDiv>
                 </TSDiv>
 
@@ -159,7 +159,7 @@ export function PeersView({onPeerPress}: PeersViewProps) {
                     />
                     <TSDiv
                         tag="button"
-                        {...({type: 'submit'} as any)}
+                        type="submit"
                         className="px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 transition-colors"
                     >
                         Add
@@ -236,7 +236,7 @@ export function PeersView({onPeerPress}: PeersViewProps) {
                                     handlePeerPress(peer.host)
                                 }}
                             >
-                                Open →d
+                                Open →
                             </TSDiv>
                         </TSDiv>
                     ))
@@ -269,7 +269,7 @@ async function getPeersFromEnvironment(): Promise<string[]> {
     }
 
     // Check environment variables (only available after full rebuild with .env)
-    const envPeers = import.meta?.env?.RELAY_PUBLIC_MASTER_PEER_LIST || "https://node-dfw1.relaynet.online;https://node-dfw2.relaynet.online"
+    const envPeers = import.meta?.env?.RELAY_PUBLIC_MASTER_PEER_LIST || 'https://atlanta2.relaygateway.net'
     console.log('[getPeersFromEnvironment] RELAY_PUBLIC_MASTER_PEER_LIST:', envPeers)
     if (envPeers) {
         const peers = envPeers.split(';').map((p: string) => p.trim()).filter((p: string) => p.length > 0)
@@ -278,9 +278,10 @@ async function getPeersFromEnvironment(): Promise<string[]> {
     }
 
     // Try to get from global config (would be set by server)
-    if ((window as any).RELAY_PUBLIC_MASTER_PEER_LIST) {
-        console.log('[getPeersFromEnvironment] Loaded from window.RELAY_PUBLIC_MASTER_PEER_LIST:', (window as any).RELAY_PUBLIC_MASTER_PEER_LIST)
-        return (window as any).RELAY_PUBLIC_MASTER_PEER_LIST.split(',').map((p: string) => p.trim())
+    const win = window as Window & { RELAY_PUBLIC_MASTER_PEER_LIST?: string }
+    if (win.RELAY_PUBLIC_MASTER_PEER_LIST) {
+        console.log('[getPeersFromEnvironment] Loaded from window.RELAY_PUBLIC_MASTER_PEER_LIST:', win.RELAY_PUBLIC_MASTER_PEER_LIST)
+        return win.RELAY_PUBLIC_MASTER_PEER_LIST.split(',').map((p: string) => p.trim())
     }
 
     // Fallback: try localhost
