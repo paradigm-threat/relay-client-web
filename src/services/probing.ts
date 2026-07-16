@@ -236,9 +236,8 @@ export async function fetchPeerOptions(
           lastUpdateTs: Date.now(),
         }
       }
-    } catch (err) {
+    } catch {
       // Continue to next protocol
-
     }
   }
 

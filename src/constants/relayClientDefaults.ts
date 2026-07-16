@@ -21,6 +21,24 @@ export interface ClientHookGetInfo {
   [key: string]: unknown
 }
 
+/** Placeholder repo when OPTIONS / is unavailable (static file relay). */
+export const STATIC_RELAY_FALLBACK_REPO = '_static'
+
+export interface StaticRelayFallbackOptions {
+  repos: { name: string; branches: Record<string, string> }[]
+  client?: ClientHookGetInfo['client']
+  [key: string]: unknown
+}
+
+/**
+ * Synthetic OPTIONS payload for relays that do not implement OPTIONS / (e.g. plain static files).
+ */
+export function staticRelayOptionsFallback (): StaticRelayFallbackOptions {
+  return applyDefaultClientGetHook({
+    repos: [{ name: STATIC_RELAY_FALLBACK_REPO, branches: { main: 'unknown' } }],
+  }) as StaticRelayFallbackOptions
+}
+
 /** Fills `client.hooks.get.path` when OPTIONS / legacy gateway omits it. */
 export function applyDefaultClientGetHook<T extends ClientHookGetInfo> (options: T): T {
   const merged = { ...options } as ClientHookGetInfo & T

@@ -175,8 +175,9 @@ export function VideoPlayer({
     // 1. explicit `enabled` prop (boolean)
     // 2. runtime global `window.__videoEnabled` (boolean)
     // 3. environment flag RELAY_PUBLIC_DISABLE_VIDEO === 'true' (default disables)
-    const envDisable = typeof import.meta !== 'undefined' && (import.meta as any).env?.RELAY_PUBLIC_DISABLE_VIDEO === 'true'
-    const globalOverride = (globalThis as any).__videoEnabled
+    const importMeta = import.meta as unknown as { env?: { RELAY_PUBLIC_DISABLE_VIDEO?: string } }
+    const envDisable = typeof import.meta !== 'undefined' && importMeta.env?.RELAY_PUBLIC_DISABLE_VIDEO === 'true'
+    const globalOverride = (globalThis as { __videoEnabled?: boolean }).__videoEnabled
     const isEnabled = typeof enabled === 'boolean' ? enabled : (typeof globalOverride === 'boolean' ? globalOverride : !envDisable)
 
     if (!isEnabled) {
@@ -219,17 +220,16 @@ export function VideoPlayer({
 
             {/* Video element - shown when ready */}
             {isReady && resolvedSrc ? (
-                <TSDiv
-                    tag="video"
+                <video
                     ref={videoRef}
+                    className="w-full"
                     src={resolvedSrc}
                     poster={poster}
                     controls={controls}
-                    style={{width: '100%', maxHeight: 480}}
+                    style={{ width: '100%', maxHeight: 480 }}
                 >
                     {(subtitles || []).map((t, i) => (
-                        <TSDiv
-                            tag="track"
+                        <track
                             key={i}
                             src={t.src}
                             label={t.label}
@@ -238,7 +238,7 @@ export function VideoPlayer({
                             default={t.default}
                         />
                     ))}
-                </TSDiv>
+                </video>
             ) : (
                 <TSDiv className="w-full rounded aspect-video flex items-center justify-center">
                     {!isError && <TSDiv className="text-gray-400 text-sm">Loading media...</TSDiv>}

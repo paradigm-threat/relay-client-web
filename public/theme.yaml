@@ -1,0 +1,40 @@
+themes:
+  default:
+    inherits: light
+    inheritsDark: dark
+  light:
+    variables:
+      primary: "#3b82f6"
+      secondary: "#10b981"
+      bg: "#ffffff"
+      surface: "#f9fafb"
+      text: "#111827"
+      muted: "#6b7280"
+      border: "#e5e7eb"
+    selectors:
+      body:
+        backgroundColor: "var(bg)"
+      "span, button, h1, h2, h3, h4, h5, h6, p":
+        color: "var(text)"
+      ".bg-primary":
+        backgroundColor: "var(primary)"
+      ".bg-secondary":
+        backgroundColor: "var(secondary)"
+      ".bg-surface":
+        backgroundColor: "var(surface)"
+      ".text-primary":
+        color: "var(primary)"
+      ".text-muted":
+        color: "var(muted)"
+      ".border-themed":
+        borderColor: "var(border)"
+        borderWidth: 1
+  dark:
+    inherits: light
+    variables:
+      bg: "#111827"
+      surface: "#1f2937"
+      text: "#f9fafb"
+      muted: "#9ca3af"
+      primary: "#60a5fa"
+      border: "#374151"

@@ -1,10 +1,13 @@
 import type { LinkProps } from '../../types'
 import { usePlugin } from '../../PluginContext'
+import { useAppState } from '../../../state/store'
+import { resolveRepoContentPath } from '../../../navigation/resolveRepoPath'
 
 /**
  * Web Link Component
- * 
- * Handles internal and external links with proper navigation.
+ *
+ * Internal links use client-side navigation (active tab path + History API) so the
+ * page and WASM runtime are not reloaded.
  */
 export function Link({
   href,
@@ -14,24 +17,32 @@ export function Link({
   className = '',
 }: LinkProps) {
   const { plugin } = usePlugin()
-  
-  // Check if this is an internal link
-  const isInternal = href.startsWith('/') || href.startsWith('.') || 
-    (!href.startsWith('http') && !href.startsWith('mailto:') && !href.startsWith('tel:'))
+  const contentBase = useAppState((s) => {
+    const id = s.activeTabId
+    if (!id) return '/'
+    const t = s.tabs.find((x) => x.id === id)
+    return t?.path ?? '/'
+  })
+
+  const isInternal =
+    !/^(mailto:|tel:|#)/i.test(href) &&
+    (!/^https?:\/\//i.test(href) ||
+      (typeof window !== 'undefined' &&
+        (() => {
+          try {
+            return new URL(href).origin === window.location.origin
+          } catch {
+            return false
+          }
+        })()))
+
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (isInternal && !target) {
       e.preventDefault()
-      
-      // Resolve relative paths
-      let resolvedPath = href
-      if (href.startsWith('.')) {
-        const currentPath = window.location.pathname
-        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'))
-        resolvedPath = new URL(href, `http://localhost${basePath}/`).pathname
-      }
-      
-      // Use plugin navigation if available, otherwise use history API
+
+      const resolvedPath = resolveRepoContentPath(href, contentBase)
+
       if (plugin.navigate) {
         plugin.navigate(resolvedPath)
       } else {

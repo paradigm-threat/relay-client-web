@@ -51,9 +51,9 @@ bash build-and-deploy.sh
 Executes hook code with injected metadata:
 ```typescript
 // Injected globals before module execution:
-const filename = "/hooks/client/get-client.jsx"
+const filename = "/hooks/client/get.jsx"
 const dirname = "/hooks/client"
-const url = "http://localhost:5173/hooks/client/get-client.jsx"
+const url = "http://localhost:5173/hooks/client/get.jsx"
 ```
 
 Also provides module globals:

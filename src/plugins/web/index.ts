@@ -70,8 +70,13 @@ export function createWebPlugin(config: Partial<PluginConfig> = {}): Plugin {
       }
     },
 
-    navigate(path: string) {
-      window.history.pushState({}, '', path)
+    navigate(path: string, opts?: { replace?: boolean }) {
+      if (pluginConfig.onNavigate) {
+        pluginConfig.onNavigate(path, opts)
+        return
+      }
+      const method = opts?.replace ? 'replaceState' : 'pushState'
+      window.history[method]({}, '', path)
       window.dispatchEvent(new PopStateEvent('popstate'))
     },
 

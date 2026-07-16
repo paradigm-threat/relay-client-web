@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAppState } from '../state/store'
 import { RepoFetchProvider } from '../context/RepoFetchContext'
 import HookRenderer from './ThemedHookRenderer'
-import { TSDiv } from '@clevertree/themed-styler'
+import { RepoBrowserShadowRoot } from './RepoBrowserShadowRoot'
+import { TSDiv } from './TSDiv'
 import {
   applyDefaultClientGetHook,
   repoRelativeHookPathToUrlPath,
+  staticRelayOptionsFallback,
 } from '../constants/relayClientDefaults'
 
 interface RepoBrowserProps {
@@ -23,7 +25,99 @@ interface OptionsInfo {
     repos?: { name: string; branches: Record<string, string> }[]
     capabilities?: { supports: string[] }
 
-    [key: string]: any
+    [key: string]: unknown
+}
+
+/** Diagnostics object built by hook renderer / fetch paths; UI maps common fields */
+interface RepoBrowserHookDiagnostics {
+    kind?: string
+    hookUrl?: string
+    fetch?: { status: number; ok: boolean; contentType?: string }
+    codeLength?: number
+    reason?: string
+    jsxError?: unknown
+    isWasmNotLoaded?: boolean
+    isJsxSyntaxError?: boolean
+    error?: string
+    diagnosticMsg?: string
+    transpilerVersion?: string | number
+    transpilerDiagnostic?: string
+    finalCodeSnippet?: string
+    transpiledCodeSnippet?: string
+    stack?: unknown
+    fetchJson?: {
+        url?: string
+        status?: unknown
+        ok?: boolean
+        contentType?: string
+        sample?: string
+    }
+    phase?: string
+    optionsInfo?: unknown
+}
+
+interface GitPullResultState {
+    success?: boolean
+    message?: string
+    before_commit?: string
+    after_commit?: string
+    updated?: boolean
+    error?: string
+}
+
+function renderHookKindDiagnosticsPanel (d: RepoBrowserHookDiagnostics): React.JSX.Element | null {
+    const k = d.kind
+    if (typeof k !== 'string' || k.length === 0) return null
+    return (
+        <TSDiv className="bg-red-600/10 p-3 rounded border/50">
+            <TSDiv className="font-mono text-xs space-y-1">
+                <TSDiv><TSDiv tag="strong">Hook Type:</TSDiv> {k}</TSDiv>
+                {d.hookUrl && (
+                    <TSDiv className="break-all"><TSDiv tag="strong">GET URL:</TSDiv> <TSDiv tag="code"
+                        className="bg-black/20 px-1 py-0.5 rounded">{d.hookUrl}</TSDiv>
+                    </TSDiv>
+                )}
+                {d.fetch && (
+                    <>
+                        <TSDiv><TSDiv tag="strong">HTTP
+                            Status:</TSDiv> {d.fetch.status} {d.fetch.ok ? '✓' : '✗'}
+                        </TSDiv>
+                        <TSDiv>
+                            <TSDiv tag="strong">Content-Type:</TSDiv> {d.fetch.contentType || 'not specified'}
+                        </TSDiv>
+                    </>
+                )}
+                {d.codeLength && (
+                    <TSDiv><TSDiv tag="strong">Code
+                        Length:</TSDiv> {d.codeLength} bytes</TSDiv>
+                )}
+            </TSDiv>
+        </TSDiv>
+    )
+}
+
+function renderLastTranspiledSnippet (d: RepoBrowserHookDiagnostics): React.JSX.Element | null {
+    const snippet = d.transpiledCodeSnippet
+    if (typeof snippet !== 'string' || snippet.length === 0) return null
+    return (
+        <TSDiv tag="details" className="text-xs bg-black/10 border border-black/20 rounded p-2 mb-2">
+            <TSDiv tag="summary" className="cursor-pointer">Last transpiler output (window.__lastTranspiledCode)</TSDiv>
+            <TSDiv tag="pre" className="overflow-auto max-h-32 text-[11px] mt-1 whitespace-pre-wrap">{snippet}</TSDiv>
+        </TSDiv>
+    )
+}
+
+function formatUnknownJsxError (jsxError: unknown): string {
+    if (typeof jsxError === 'string') return jsxError
+    if (jsxError && typeof jsxError === 'object' && jsxError !== null && 'message' in jsxError) {
+        const m = (jsxError as { message?: unknown }).message
+        if (typeof m === 'string' && m.length) return m
+    }
+    try {
+        return JSON.stringify(jsxError, null, 2)
+    } catch {
+        return String(jsxError)
+    }
 }
 
 /**
@@ -57,16 +151,17 @@ function splitHookUrl(hookUrl: string): { host: string; hookPath: string } {
 
 export function RepoBrowser({ tabId }: RepoBrowserProps) {
     const tab = useAppState((s) => s.tabs.find((t) => t.id === tabId))
+    const embedMode = useAppState((s) => s.embedMode)
     const updateTab = useAppState((s) => s.updateTab)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [errorDetails, setErrorDetails] = useState<any>(null)
+    const [hookDiag, setHookDiag] = useState<RepoBrowserHookDiagnostics | null>(null)
     const [optionsInfo, setOptionsInfo] = useState<OptionsInfo>({})
     // Hook rendering delegated to HookRenderer component
     // Server version and git pull state
     const [serverHeadCommit, setServerHeadCommit] = useState<string | null>(null)
     const [isPulling, setIsPulling] = useState(false)
-    const [pullResult, setPullResult] = useState<any>(null)
+    const [pullResult, setPullResult] = useState<GitPullResultState | null>(null)
     const [showUpdateModal, setShowUpdateModal] = useState(false)
     /** Bumps to re-run OPTIONS/content load without a full page reload */
     const [refreshEpoch, setRefreshEpoch] = useState(0)
@@ -94,7 +189,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         try {
             const baseUrl = normalizeHostUrl(tab.host)
             const resp = await fetch(`${baseUrl}/git-pull`, { method: 'POST' })
-            const result = await resp.json()
+            const result = (await resp.json()) as GitPullResultState
             setPullResult(result)
 
             if (result.updated) {
@@ -127,7 +222,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         if (tab.directHookUrl) {
             setLoading(false)
             setError(null)
-            setErrorDetails(null)
+            setHookDiag(null)
             return
         }
 
@@ -149,72 +244,112 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                 console.error('[RepoBrowser] init failed:', e)
             }
         })()
-    }, [tab?.host, tab?.path, tab?.directHookUrl, refreshEpoch])
+        // loadOptions/loadContent close over `tab`; effect is keyed by tab identity fields.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab?.host, tab?.path, tab?.directHookUrl, tab?.id, refreshEpoch])
 
     const loadOptions = async (): Promise<OptionsInfo | null> => {
         if (!tab || !tab.host) return null
-        try {
-            const baseUrl = normalizeHostUrl(tab.host)
-            const diagnostics: Record<string, any> = { phase: 'options', url: `${baseUrl}/` }
 
-            // Attempt OPTIONS discovery first
-            const resp = await fetch(`${baseUrl}/`, { method: 'OPTIONS' })
-            diagnostics.options = {
-                status: resp.status,
-                ok: resp.ok,
-                headers: {
-                    'content-type': resp.headers.get('content-type'),
-                    'content-length': resp.headers.get('content-length'),
-                },
-            }
-
-            let options: OptionsInfo | null = null
-            let parsedFrom: 'OPTIONS' | null = null
-
-            try {
-                // Some reverse proxies return 200 with empty body for OPTIONS
-                const text = await resp.text()
-                diagnostics.optionsBodyLength = text?.length || 0
-                if (text && text.trim().length > 0) {
-                    options = JSON.parse(text)
-                    parsedFrom = 'OPTIONS'
-                }
-            } catch (parseErr) {
-                diagnostics.optionsParseError = parseErr instanceof Error ? parseErr.message : String(parseErr)
-            }
-
-            if (!options) {
-                const message = `Repository discovery failed: OPTIONS returned ${diagnostics.options?.status} with body length ${diagnostics.optionsBodyLength}. The server must implement OPTIONS / to return capabilities and client hooks.`
-                setError(message)
-                setErrorDetails(diagnostics)
-                console.error('[RepoBrowser] Discovery failed. Diagnostics:', diagnostics)
-                return null
-            }
-
-            // If OPTIONS returned a valid payload but contains no repositories, surface a clearer error
-            if (Array.isArray(options.repos) && options.repos.length === 0) {
-                setError('Repository discovery did not return any repos. OPTIONS responded successfully but the repos list is empty. See details for diagnostics.')
-                setErrorDetails({ phase: 'render', reason: 'no-repos', optionsInfo: options, diagnostics })
-                console.error('[RepoBrowser] No repos returned in OPTIONS payload:', { options, diagnostics })
-                return null
-            }
-
-            const merged = applyDefaultClientGetHook(options as OptionsInfo)
+        const finishWithStaticFallback = (
+            diag: Record<string, unknown>,
+            hint: string,
+        ): OptionsInfo => {
+            console.warn('[RepoBrowser]', hint, diag)
+            diag.fallback = 'options-unavailable-static-default-hook'
+            const merged = staticRelayOptionsFallback() as OptionsInfo
+            setError(null)
+            setHookDiag(null)
             setOptionsInfo(merged)
-            diagnostics.parsedFrom = parsedFrom
-            const branches = merged.repos?.[0]?.branches ? Object.keys(merged.repos[0].branches) : undefined
+            const branches =
+                merged.repos?.[0]?.branches ? Object.keys(merged.repos[0].branches) : undefined
             updateTab(tab.id, (t) => ({
                 ...t,
                 branches,
                 reposList: merged.repos?.map((r) => r.name),
             }))
             return merged
-        } catch (err) {
-            console.error('Failed to load options:', err)
-            setError('Failed to load repository OPTIONS')
-            setErrorDetails({ phase: 'options', reason: (err as any)?.message || String(err) })
-            return null
         }
+
+        const baseUrl = normalizeHostUrl(tab.host)
+        const diagnostics: Record<string, unknown> = { phase: 'options', url: `${baseUrl}/` }
+
+        if (typeof window !== 'undefined' && window.location?.origin) {
+            try {
+                const hookOrigin = new URL(`${baseUrl}/`).origin
+                if (hookOrigin !== window.location.origin) {
+                    diagnostics.skipped = 'cross-origin-options'
+                    return finishWithStaticFallback(
+                        diagnostics,
+                        'Skipping OPTIONS for cross-origin hook host (avoids CORS preflight); using default hook path',
+                    )
+                }
+            } catch {
+                /* proceed with OPTIONS */
+            }
+        }
+
+        let resp: Response
+        try {
+            resp = await fetch(`${baseUrl}/`, { method: 'OPTIONS' })
+        } catch (fetchErr) {
+            diagnostics.optionsFetchError =
+                fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
+            return finishWithStaticFallback(
+                diagnostics,
+                'OPTIONS fetch failed; using default hook path',
+            )
+        }
+
+        diagnostics.options = {
+            status: resp.status,
+            ok: resp.ok,
+            headers: {
+                'content-type': resp.headers.get('content-type'),
+                'content-length': resp.headers.get('content-length'),
+            },
+        }
+
+        let options: OptionsInfo | null = null
+        let parsedFrom: 'OPTIONS' | null = null
+
+        try {
+            const text = await resp.text()
+            diagnostics.optionsBodyLength = text?.length || 0
+            if (text && text.trim().length > 0) {
+                options = JSON.parse(text) as OptionsInfo
+                parsedFrom = 'OPTIONS'
+            }
+        } catch (parseErr) {
+            diagnostics.optionsParseError = parseErr instanceof Error ? parseErr.message : String(parseErr)
+        }
+
+        const hasValidRepos =
+            options &&
+            Array.isArray(options.repos) &&
+            options.repos.length > 0
+
+        if (hasValidRepos) {
+            const merged = applyDefaultClientGetHook(options as OptionsInfo)
+            setOptionsInfo(merged)
+            diagnostics.parsedFrom = parsedFrom
+            const branches =
+                merged.repos?.[0]?.branches ? Object.keys(merged.repos[0].branches) : undefined
+            updateTab(tab.id, (t) => ({
+                ...t,
+                branches,
+                reposList: merged.repos?.map((r) => r.name),
+            }))
+            return merged
+        }
+
+        diagnostics.fallbackHint =
+            diagnostics.optionsFetchError ??
+            (!resp.ok ? `OPTIONS status ${resp.status}` : 'empty or invalid OPTIONS body / no repos')
+        return finishWithStaticFallback(
+            diagnostics,
+            'OPTIONS unavailable or empty; using default hook path',
+        )
     }
 
     const loadContent = async (opts?: OptionsInfo | null) => {
@@ -228,7 +363,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             const raw = opts ?? optionsInfo
             if (!raw || !Array.isArray(raw.repos) || raw.repos.length === 0) {
                 setError('Repository discovery did not return usable repo metadata. See details for diagnostics.')
-                setErrorDetails({ phase: 'render', reason: 'no-options', optionsInfo: raw })
+                setHookDiag({ phase: 'render', reason: 'no-options', optionsInfo: raw })
                 return
             }
 
@@ -237,7 +372,11 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             return
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load content')
-            setErrorDetails(err)
+            setHookDiag({
+                reason: 'load-content-failed',
+                error: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+            })
         } finally {
             setLoading(false)
         }
@@ -265,7 +404,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
       [repoBaseUrl]
     )
     const providerFetch = useMemo(
-      () => (input: any, init?: RequestInit) => {
+      () => (input: RequestInfo | URL, init?: RequestInit) => {
         if (typeof input === 'string') {
           const isAbs = /^(https?:)?\/\//i.test(input)
           return fetch(isAbs ? input : providerResolve(input), init)
@@ -300,16 +439,19 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         try {
           return JSON.parse(text)
         } catch (err) {
-          throw mkErr(`Failed to parse JSON: ${(err as any)?.message || String(err)}`)
+          throw mkErr(`Failed to parse JSON: ${err instanceof Error ? err.message : String(err)}`)
         }
       },
       [providerResolve]
     )
 
     const resolvedHookUrlPath = useMemo(() => {
+        if (tab?.embedClientHookUrlPath) {
+            return tab.embedClientHookUrlPath
+        }
         const p = optionsInfo?.client?.hooks?.get?.path ?? 'hooks/client/get.jsx'
         return repoRelativeHookPathToUrlPath(p)
-    }, [optionsInfo])
+    }, [optionsInfo, tab?.embedClientHookUrlPath])
 
     if (!tab) {
       return <div className="repo-browser">Tab not found</div>
@@ -322,8 +464,9 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             fetch: providerFetch,
             fetchJson: providerFetchJson
         }}>
-            <TSDiv className="flex flex-col h-full">
-                <TSDiv className="flex-1 overflow-y-auto">
+            <RepoBrowserShadowRoot>
+            <TSDiv className="flex flex-col h-full min-h-0">
+                <TSDiv className="flex-1 min-h-0 overflow-hidden">
 
                         {loading &&
                             <TSDiv className="flex items-center justify-center h-full">Loading...</TSDiv>}
@@ -334,44 +477,19 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                 <TSDiv tag="h3" className="mt-0">Error</TSDiv>
                                 <TSDiv tag="p" className="font-semibold">{error}</TSDiv>
 
-                                {errorDetails && (
+                                {hookDiag && (
                                     <TSDiv className="mt-4 space-y-3 text-sm">
                                         {/* Show hook path and HTTP request info */}
-                                        {errorDetails.kind && (
-                                            <TSDiv className="bg-red-600/10 p-3 rounded border/50">
-                                                <TSDiv className="font-mono text-xs space-y-1">
-                                                    <TSDiv><TSDiv tag="strong">Hook Type:</TSDiv> {errorDetails.kind}</TSDiv>
-                                                    {errorDetails.hookUrl && (
-                                                        <TSDiv className="break-all"><TSDiv tag="strong">GET URL:</TSDiv> <TSDiv tag="code"
-                                                            className="bg-black/20 px-1 py-0.5 rounded">{errorDetails.hookUrl}</TSDiv>
-                                                        </TSDiv>
-                                                    )}
-                                                    {errorDetails.fetch && (
-                                                        <>
-                                                            <TSDiv><TSDiv tag="strong">HTTP
-                                                                Status:</TSDiv> {errorDetails.fetch.status} {errorDetails.fetch.ok ? '✓' : '✗'}
-                                                            </TSDiv>
-                                                            <TSDiv>
-                                                                <TSDiv tag="strong">Content-Type:</TSDiv> {errorDetails.fetch.contentType || 'not specified'}
-                                                            </TSDiv>
-                                                        </>
-                                                    )}
-                                                    {errorDetails.codeLength && (
-                                                        <TSDiv><TSDiv tag="strong">Code
-                                                            Length:</TSDiv> {errorDetails.codeLength} bytes</TSDiv>
-                                                    )}
-                                                </TSDiv>
-                                            </TSDiv>
-                                        )}
+                                        {renderHookKindDiagnosticsPanel(hookDiag)}
 
                                         {/* Show JSX transpilation errors (from transpileCode failure) */}
-                                        {(errorDetails.reason === 'transpile-failed' || errorDetails.jsxError) && (
+                                        {(hookDiag.reason === 'transpile-failed' || hookDiag.jsxError != null) && (
                                             <TSDiv className="bg-red-600/10 p-3 rounded border/50 space-y-2">
                                                 <TSDiv className="font-semibold text-xs">
-                                                    {errorDetails.isWasmNotLoaded ? '🔌 WASM Transpiler Not Available' : '❌ JSX Transpilation Failed'}
+                                                    {hookDiag.isWasmNotLoaded ? '🔌 WASM Transpiler Not Available' : '❌ JSX Transpilation Failed'}
                                                 </TSDiv>
 
-                                                {errorDetails.isWasmNotLoaded && (
+                                                {hookDiag.isWasmNotLoaded && (
                                                     <TSDiv className="text-xs bg-red-900/20 border/30 rounded p-2 space-y-1">
                                                         <TSDiv tag="p" className="font-semibold">The JSX transpiler (WASM) is not available</TSDiv>
                                                         <TSDiv tag="p">This usually means:</TSDiv>
@@ -384,7 +502,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                                     </TSDiv>
                                                 )}
 
-                                                {!errorDetails.isWasmNotLoaded && (
+                                                {!hookDiag.isWasmNotLoaded && (
                                                     <TSDiv className="text-xs bg-red-900/20 border/30 rounded p-2 space-y-1">
                                                         <TSDiv tag="p" className="font-semibold">Invalid JSX syntax detected</TSDiv>
                                                         <TSDiv tag="p">The transpiler encountered syntax it couldn't convert. Check:</TSDiv>
@@ -397,20 +515,20 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                                 )}
 
                                                 <TSDiv className="font-mono text-xs bg-black/20 p-2 rounded overflow-auto max-h-32 whitespace-pre-wrap">
-                                                    {typeof errorDetails.jsxError === 'string' ? errorDetails.jsxError : (errorDetails.jsxError?.message || JSON.stringify(errorDetails.jsxError, null, 2))}
+                                                    {formatUnknownJsxError(hookDiag.jsxError)}
                                                 </TSDiv>
                                             </TSDiv>
                                         )}
 
                                         {/* Show execution errors */}
-                                        {errorDetails.reason === 'execution-failed' && errorDetails.error && (
-                                            <TSDiv className={`p-3 rounded border ${errorDetails.isJsxSyntaxError ? 'bg-orange-600/10 border-orange-400/50' : 'bg-red-600/10/50'}`}>
+                                        {hookDiag.reason === 'execution-failed' && hookDiag.error && (
+                                            <TSDiv className={`p-3 rounded border ${hookDiag.isJsxSyntaxError ? 'bg-orange-600/10 border-orange-400/50' : 'bg-red-600/10/50'}`}>
                                                 <TSDiv className="font-semibold text-xs mb-3">
-                                                    {errorDetails.isJsxSyntaxError ? '⚠️ JSX Transpilation Issue' : '❌ Execution Error'}
+                                                    {hookDiag.isJsxSyntaxError ? '⚠️ JSX Transpilation Issue' : '❌ Execution Error'}
                                                 </TSDiv>
 
                                                 {/* For JSX syntax errors, provide detailed help */}
-                                                {errorDetails.isJsxSyntaxError && (
+                                                {hookDiag.isJsxSyntaxError && (
                                                     <TSDiv className="space-y-2 mb-3">
                                                         <TSDiv className="text-xs bg-orange-900/20 border border-orange-400/30 rounded p-2">
                                                             <TSDiv tag="p" className="font-semibold mb-2">What went wrong:</TSDiv>
@@ -438,47 +556,44 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                                 )}
 
                                                 <TSDiv className="font-mono text-xs mb-2">
-                                                    <TSDiv tag="strong">Error Message:</TSDiv> {errorDetails.error}
+                                                    <TSDiv tag="strong">Error Message:</TSDiv> {hookDiag.error}
                                                 </TSDiv>
-                                                {errorDetails.diagnosticMsg && (
+                                                {hookDiag.diagnosticMsg && (
                                                     <TSDiv className="font-mono text-xs mb-2 bg-black/20 p-2 rounded whitespace-pre-wrap">
                                                         <TSDiv tag="strong">Diagnostic:</TSDiv>
                                                         <TSDiv className="mt-1">
-                                                            {errorDetails.diagnosticMsg}
+                                                            {hookDiag.diagnosticMsg}
                                                         </TSDiv>
                                                     </TSDiv>
                                                 )}
-                                                {errorDetails.transpilerVersion && (
+                                                {hookDiag.transpilerVersion && (
                                                     <TSDiv className="font-mono text-xs mb-2 text-blue-100">
-                                                        <TSDiv tag="strong">Hook transpiler:</TSDiv> v{errorDetails.transpilerVersion}
+                                                        <TSDiv tag="strong">Hook transpiler:</TSDiv> v{hookDiag.transpilerVersion}
                                                     </TSDiv>
                                                 )}
-                                                {errorDetails.transpilerDiagnostic && (
+                                                {hookDiag.transpilerDiagnostic && (
                                                     <TSDiv className="font-mono text-xs bg-black/30 rounded p-2 mb-2 break-words">
                                                         <TSDiv tag="strong">Transpiler error:</TSDiv>
                                                         <TSDiv className="mt-1 text-[11px] whitespace-pre-wrap">
-                                                            {errorDetails.transpilerDiagnostic}
+                                                            {hookDiag.transpilerDiagnostic}
                                                         </TSDiv>
                                                     </TSDiv>
                                                 )}
-                                                {errorDetails.finalCodeSnippet && (
+                                                {hookDiag.finalCodeSnippet && (
                                                     <TSDiv tag="details" className="text-xs bg-black/10 border border-black/20 rounded p-2 mb-2">
                                                         <TSDiv tag="summary" className="cursor-pointer">Transpiled preview (first 500 chars)</TSDiv>
-                                                        <TSDiv tag="pre" className="overflow-auto max-h-32 text-[11px] mt-1 whitespace-pre-wrap">{errorDetails.finalCodeSnippet}</TSDiv>
+                                                        <TSDiv tag="pre" className="overflow-auto max-h-32 text-[11px] mt-1 whitespace-pre-wrap">{hookDiag.finalCodeSnippet}</TSDiv>
                                                     </TSDiv>
                                                 )}
-                                                {errorDetails.transpiledCodeSnippet && (
-                                                    <TSDiv tag="details" className="text-xs bg-black/10 border border-black/20 rounded p-2 mb-2">
-                                                        <TSDiv tag="summary" className="cursor-pointer">Last transpiler output (window.__lastTranspiledCode)</TSDiv>
-                                                        <TSDiv tag="pre" className="overflow-auto max-h-32 text-[11px] mt-1 whitespace-pre-wrap">{errorDetails.transpiledCodeSnippet}</TSDiv>
-                                                    </TSDiv>
-                                                )}
-                                                {errorDetails.stack && Array.isArray(errorDetails.stack) && (
+                                                {renderLastTranspiledSnippet(hookDiag)}
+                                                {Array.isArray(hookDiag.stack) && (
                                                     <TSDiv tag="details" className="text-xs">
                                                         <TSDiv tag="summary" className="cursor-pointer hover:underline opacity-70 mb-1">Stack trace</TSDiv>
                                                         <TSDiv tag="pre"
                                                             className="overflow-auto max-h-24 whitespace-pre-wrap opacity-60 bg-black/20 p-2 rounded">
-                                                            {errorDetails.stack.join('\n')}
+                                                            {(hookDiag.stack as unknown[])
+                                                                .filter((s): s is string => typeof s === 'string')
+                                                                .join('\n')}
                                                         </TSDiv>
                                                     </TSDiv>
                                                 )}
@@ -486,25 +601,25 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                         )}
 
                                         {/* Repo fetch JSON mismatch diagnostics */}
-                                        {errorDetails.fetchJson && (
+                                        {hookDiag.fetchJson && (
                                             <TSDiv className="bg-yellow-600/10 p-3 rounded border border-yellow-400/50">
                                                 <TSDiv className="font-semibold text-xs mb-2">Expected JSON but got HTML
                                                     (likely SPA fallback)
                                                 </TSDiv>
                                                 <TSDiv className="text-xs space-y-1 font-mono">
-                                                    <TSDiv><TSDiv tag="strong">URL:</TSDiv> {errorDetails.fetchJson.url}</TSDiv>
+                                                    <TSDiv><TSDiv tag="strong">URL:</TSDiv> {hookDiag.fetchJson.url}</TSDiv>
                                                     <TSDiv>
-                                                        <TSDiv tag="strong">Status:</TSDiv> {String(errorDetails.fetchJson.status)} ({errorDetails.fetchJson.ok ? 'ok' : 'error'})
+                                                        <TSDiv tag="strong">Status:</TSDiv> {String(hookDiag.fetchJson.status)} ({hookDiag.fetchJson.ok ? 'ok' : 'error'})
                                                     </TSDiv>
                                                     <TSDiv>
-                                                        <TSDiv tag="strong">Content-Type:</TSDiv> {errorDetails.fetchJson.contentType || 'n/a'}
+                                                        <TSDiv tag="strong">Content-Type:</TSDiv> {hookDiag.fetchJson.contentType || 'n/a'}
                                                     </TSDiv>
-                                                    {errorDetails.fetchJson.sample && (
+                                                    {hookDiag.fetchJson.sample && (
                                                         <TSDiv tag="details" className="mt-2">
                                                             <TSDiv tag="summary" className="cursor-pointer">Response sample
                                                             </TSDiv>
                                                             <TSDiv tag="pre"
-                                                                className="mt-1 max-h-40 overflow-auto bg-black/20 p-2 rounded">{errorDetails.fetchJson.sample}</TSDiv>
+                                                                className="mt-1 max-h-40 overflow-auto bg-black/20 p-2 rounded">{hookDiag.fetchJson.sample}</TSDiv>
                                                         </TSDiv>
                                                     )}
                                                 </TSDiv>
@@ -517,9 +632,9 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                         )}
 
                                         {/* Show general diagnostics */}
-                                        {errorDetails.reason && (
+                                        {hookDiag.reason && (
                                             <TSDiv className="text-xs opacity-80">
-                                                <TSDiv tag="strong">Phase:</TSDiv> {errorDetails.phase || 'unknown'} | <TSDiv tag="strong">Reason:</TSDiv> {errorDetails.reason}
+                                                <TSDiv tag="strong">Phase:</TSDiv> {hookDiag.phase || 'unknown'} | <TSDiv tag="strong">Reason:</TSDiv> {hookDiag.reason}
                                             </TSDiv>
                                         )}
                                     </TSDiv>
@@ -547,7 +662,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                     <TSDiv tag="summary" className="cursor-pointer font-semibold">Full Diagnostics (JSON)</TSDiv>
                                     <TSDiv tag="pre"
                                         className="mt-2 overflow-auto max-h-64 whitespace-pre-wrap bg-black/20 p-2 rounded">
-                                        {JSON.stringify(errorDetails, null, 2)}
+                                        {JSON.stringify(hookDiag, null, 2)}
                                     </TSDiv>
                                 </TSDiv>
 
@@ -555,7 +670,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                                     tag="button"
                                     onClick={() => {
                                         setError(null)
-                                        setErrorDetails(null)
+                                        setHookDiag(null)
                                         setRefreshEpoch((n) => n + 1)
                                     }}
                                     className="px-4 py-2 bg-red-600 text-white border-none rounded cursor-pointer mt-4 hover:bg-red-700">Try
@@ -578,6 +693,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                     </TSDiv>
 
                 {/* Footer with version and git pull button */}
+                {!embedMode && (
                 <TSDiv
                     className="border-t bg-[var(--bg-secondary)] px-4 py-3 flex items-center justify-between">
                     <TSDiv className="text-sm text-[var(--text-secondary)]">
@@ -603,6 +719,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                         {isPulling ? '⟳ Pulling...' : `⟳ Pull${serverHeadCommit ? ` (${serverHeadCommit})` : ''}`}
                     </TSDiv>
                 </TSDiv>
+                )}
 
                 {/* Update modal */}
                 {showUpdateModal && (
@@ -657,6 +774,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                     </TSDiv>
                 )}
             </TSDiv>
+            </RepoBrowserShadowRoot>
         </RepoFetchProvider>
     )
 }

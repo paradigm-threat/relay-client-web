@@ -33,6 +33,8 @@ cypress/screenshots/
 cypress/videos/
 playwright-report/
 test-results/
+screenshots/
+logs/
 
 # Env files
 .env
@@ -54,3 +56,5 @@ Thumbs.db
 **/pkg/
 **/wasm-pack/**
 **/target/
+# Regenerate with: npm run build:wasm
+src/wasm/relay_runtime_pkg/

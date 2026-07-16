@@ -119,6 +119,10 @@ function readEnvFile(envPath) {
 }
 
 export async function bundle({ serve = false } = {}) {
+  if (!serve) {
+    // Hashed split chunks change names; never package stale bundles from previous builds.
+    fs.rmSync(outDir, { recursive: true, force: true })
+  }
   const envVars = readEnvFile(path.join(root, '.env'))
 
   // Build define object for import.meta.env access
@@ -139,6 +143,7 @@ export async function bundle({ serve = false } = {}) {
   const opts = {
     entryPoints: {
       'main': path.join(srcDir, 'main.tsx'),
+      'embed': path.join(srcDir, 'embed-main.tsx'),
     },
     outdir: assetsDir,
     publicPath: '/assets/',
@@ -185,9 +190,11 @@ export async function bundle({ serve = false } = {}) {
           const themed = path.join(srcDir, 'shims', 'themed-styler.ts')
           const transpiler = path.join(srcDir, 'shims', 'hook-transpiler.tsx')
           const markdown = path.join(srcDir, 'shims', 'markdown.tsx')
+          const md2astReact = path.resolve(root, '../relay-gateway/packages/md2ast-react/dist/index.js')
           build.onResolve({ filter: /^@clevertree\/themed-styler$/ }, () => ({ path: themed }))
           build.onResolve({ filter: /^@clevertree\/hook-transpiler$/ }, () => ({ path: transpiler }))
           build.onResolve({ filter: /^@clevertree\/markdown$/ }, () => ({ path: markdown }))
+          build.onResolve({ filter: /^@clevertree\/md2ast-react$/ }, () => ({ path: md2astReact }))
         }
       },
       // Force a single React instance across workspace packages

@@ -1,1 +1,2 @@
-export { MarkdownRenderer } from '@clevertree/hook-transpiler'
+export { MarkdownRenderer, ensureRelayMarkdownWasm } from '../relayMarkdown'
+export { RepoMarkdownView } from './RepoMarkdownView'

@@ -7,7 +7,7 @@ async function main(){
   const m = runtimeSrc.match(/const preamble = `([\s\S]*?)`\s*\n/ms)
   if(!m){ console.error('preamble not found'); process.exit(2) }
   const preamble = m[1]
-  const hook = fs.readFileSync(path.join(__dirname,'..','template','hooks','client','get-client.jsx'),'utf8')
+  const hook = fs.readFileSync(path.join(__dirname,'..','template','hooks','client','get.jsx'),'utf8')
   const code = preamble + hook
   const opts = {
     jsc: {
@@ -15,7 +15,7 @@ async function main(){
       transform: { react: { runtime: 'classic', pragma: '__relay_jsx__', pragmaFrag: '__relay_jsxFrag__', development: false } }
     },
     module: { type: 'es6' },
-    filename: 'get-client.jsx'
+    filename: 'get.jsx'
   }
   const res = await swc.transform(code, opts)
   const out = res.code

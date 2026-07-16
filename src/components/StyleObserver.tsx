@@ -11,9 +11,11 @@ export default function StyleObserver() {
       try {
         if (!(el instanceof HTMLElement)) return
         const tag = el.tagName.toLowerCase()
-        const props: any = { className: (el.getAttribute('class') || '') }
+        const props: Record<string, unknown> = { className: (el.getAttribute('class') || '') }
         unifiedBridge.registerUsage(tag, props)
-      } catch (e) {}
+      } catch {
+        /* registerUsage best-effort */
+      }
     }
 
     const obs = new MutationObserver((mutations) => {
@@ -25,8 +27,9 @@ export default function StyleObserver() {
           m.addedNodes.forEach((n) => {
             if (n instanceof Element) {
               registerElement(n)
-              // also register children
-              n.querySelectorAll && n.querySelectorAll('*').forEach((c: Element) => registerElement(c))
+              if (n.querySelectorAll) {
+                n.querySelectorAll('*').forEach((c: Element) => registerElement(c))
+              }
             }
           })
         }

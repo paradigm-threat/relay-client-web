@@ -5,16 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/build-esbuild.mjs --serve",
-    "build": "node scripts/build-esbuild.mjs",
-    "build:wasm": "bash ../relay-gateway/relay-runtime/scripts/build-wasm-web.sh",
+    "build": "npm run build:wasm && node scripts/build-esbuild.mjs",
+    "build:wasm": "bash ../relay-runtime/scripts/build-wasm-web.sh",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preflight": "node scripts/preflight-local.mjs",
     "verify:local": "npm run preflight && npm run lint && npm run typecheck && npm test && npm run build",
-    "test": "node --experimental-strip-types --test src/tests/**/*.test.ts",
+    "test": "node --experimental-strip-types --experimental-test-module-mocks --test src/tests/**/*.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
+    "test:e2e:fan-edits": "playwright test -c playwright-fan-edits.config.ts",
+    "serve:fan-edits": "node scripts/serve-fan-edits-gateway.mjs",
     "serve:relay": "npm run build && node scripts/serve-relay.mjs"
   },
   "dependencies": {

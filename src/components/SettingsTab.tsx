@@ -13,7 +13,7 @@ function JsonBlock({ value }: JsonBlockProps) {
     const text = useMemo(() => {
         try {
             return JSON.stringify(value, null, 2)
-        } catch (e) {
+        } catch {
             return String(value)
         }
     }, [value])
@@ -49,11 +49,35 @@ interface DebugPanelState {
     wasmError: WasmError | null
 }
 
+function collectDomClassNames (): string[] {
+    const classSet = new Set<string>()
+    try {
+        const all = document.body.querySelectorAll('*')
+        all.forEach((el) => {
+            const cls = (el as HTMLElement).className || ''
+            if (typeof cls === 'string' && cls.length) {
+                cls
+                    .split(/\s+/)
+                    .map((c) => c.trim())
+                    .filter(Boolean)
+                    .forEach((c) => classSet.add(c))
+            }
+        })
+    } catch {
+        /* ignore */
+    }
+    return Array.from(classSet).sort()
+}
+
 export function SettingsTab() {
-    const { setting, setSetting } = useTranspilerSetting()
-    const theme = useAppState((s) => s.theme)
-    const setTheme = useAppState((s) => s.setTheme)
+    const [setting, setSetting] = useTranspilerSetting<'wasm' | 'server-only'>('transpiler', 'wasm')
+    const shellTheme = useAppState((s) => s.shellTheme)
+    const hookTheme = useAppState((s) => s.hookTheme)
+    const setShellTheme = useAppState((s) => s.setShellTheme)
+    const setHookTheme = useAppState((s) => s.setHookTheme)
+    const openDirectHookTab = useAppState((s) => s.openDirectHookTab)
     const [themeList, setThemeList] = useState<ThemeListItem[]>([])
+    const testHookUrl = 'https://clevertree.github.io/relay-template/hooks/client/get.jsx'
 
     // Load theme list on mount
     useEffect(() => {
@@ -91,26 +115,9 @@ export function SettingsTab() {
         wasmError: null,
     })
 
-    const collectActiveClasses = () => {
-        const set = new Set<string>()
-        try {
-            const all = document.body.querySelectorAll('*')
-            all.forEach((el) => {
-                const cls = (el as HTMLElement).className || ''
-                if (typeof cls === 'string' && cls.length) {
-                    cls
-                        .split(/\s+/)
-                        .map((c) => c.trim())
-                        .filter(Boolean)
-                        .forEach((c) => set.add(c))
-                }
-            })
-        } catch {
-        }
-        return Array.from(set).sort()
-    }
-
-    const refreshClasses = () => setClasses(collectActiveClasses())
+    const refreshClasses = useCallback(() => {
+        setClasses(collectDomClassNames())
+    }, [])
     const refreshStylerStatus = useCallback(() => {
         try {
             const snapshot = unifiedBridge.getUsageSnapshot() as UsageSnapshot
@@ -150,7 +157,7 @@ export function SettingsTab() {
 
                 try {
                     const themes = unifiedBridge.getThemes && typeof unifiedBridge.getThemes === 'function'
-                        ? (unifiedBridge.getThemes() as Themes)
+                        ? (unifiedBridge.getThemes() as unknown as Themes)
                         : null
                     newState.themesState = themes
 
@@ -236,7 +243,7 @@ export function SettingsTab() {
         })
         obs.observe(document.body, { attributes: true, childList: true, subtree: true, attributeFilter: ['class'] })
         return () => obs.disconnect()
-    }, [])
+    }, [refreshClasses])
 
     useEffect(() => {
         refreshStylerStatus()
@@ -253,6 +260,10 @@ export function SettingsTab() {
 
     const isServer = setting === 'server-only'
 
+    const handleOpenTestHook = useCallback(() => {
+        openDirectHookTab(testHookUrl, 'Relay Template')
+    }, [openDirectHookTab])
+
     return (
         <TSDiv className="flex-1 overflow-y-auto p-6 space-y-6">
             <TSDiv>
@@ -264,37 +275,85 @@ export function SettingsTab() {
                 <TSDiv className="flex items-center justify-between">
                     <TSDiv>
                         <TSDiv tag="h2" className="text-lg font-semibold">Theme</TSDiv>
-                        <TSDiv tag="p" className="text-sm">Choose your preferred color theme.</TSDiv>
+                        <TSDiv tag="p" className="text-sm">Appearance for app chrome vs repository / hook panels.</TSDiv>
                     </TSDiv>
                 </TSDiv>
 
-                <TSDiv className="flex items-center justify-between rounded-lg border p-4">
-                    <TSDiv>
-                        <TSDiv tag="p" className="text-base font-medium">Appearance</TSDiv>
-                        <TSDiv tag="p" className="text-sm mt-1">Select a theme for the application interface</TSDiv>
+                <TSDiv className="flex flex-col gap-4 mt-3">
+                    <TSDiv className="flex items-center justify-between rounded-lg border p-4">
+                        <TSDiv>
+                            <TSDiv tag="p" className="text-base font-medium">App chrome</TSDiv>
+                            <TSDiv tag="p" className="text-sm mt-1 text-[var(--text-secondary)]">Home, tabs, Settings</TSDiv>
+                        </TSDiv>
+                        <TSDiv tag="label" className="inline-flex items-center cursor-pointer select-none">
+                            <select
+                                value={shellTheme}
+                                onChange={(e) => setShellTheme(e.target.value as ThemeName)}
+                                className="px-3 py-2 border rounded-md bg-surface text-text cursor-pointer"
+                            >
+                                {themeList.length > 0 ? (
+                                    themeList.map((t) => (
+                                        <option key={`shell-${t.key}`} value={t.key}>
+                                            {t.name}
+                                        </option>
+                                    ))
+                                ) : (
+                                    <>
+                                        <option value="default">Default</option>
+                                        <option value="light">Light</option>
+                                        <option value="dark">Dark</option>
+                                    </>
+                                )}
+                            </select>
+                        </TSDiv>
                     </TSDiv>
-                    <TSDiv tag="label" className="inline-flex items-center cursor-pointer select-none">
-                        <select
-                            value={theme}
-                            onChange={(e) => setTheme(e.target.value as ThemeName)}
-                            className="px-3 py-2 border rounded-md bg-surface text-text cursor-pointer"
-                        >
-                            {themeList.length > 0 ? (
-                                themeList.map((t) => (
-                                    <option key={t.key} value={t.key}>
-                                        {t.name}
-                                    </option>
-                                ))
-                            ) : (
-                                <>
-                                    <option value="default">Default (Light)</option>
-                                    <option value="light">Light</option>
-                                    <option value="dark">Dark</option>
-                                </>
-                            )}
-                        </select>
+
+                    <TSDiv className="flex items-center justify-between rounded-lg border p-4">
+                        <TSDiv>
+                            <TSDiv tag="p" className="text-base font-medium">Repositories & hooks</TSDiv>
+                            <TSDiv tag="p" className="text-sm mt-1 text-[var(--text-secondary)]">Repo browser (shadow DOM surface)</TSDiv>
+                        </TSDiv>
+                        <TSDiv tag="label" className="inline-flex items-center cursor-pointer select-none">
+                            <select
+                                value={hookTheme}
+                                onChange={(e) => setHookTheme(e.target.value as ThemeName)}
+                                className="px-3 py-2 border rounded-md bg-surface text-text cursor-pointer"
+                            >
+                                {themeList.length > 0 ? (
+                                    themeList.map((t) => (
+                                        <option key={`hook-${t.key}`} value={t.key}>
+                                            {t.name}
+                                        </option>
+                                    ))
+                                ) : (
+                                    <>
+                                        <option value="default">Default</option>
+                                        <option value="light">Light</option>
+                                        <option value="dark">Dark</option>
+                                    </>
+                                )}
+                            </select>
+                        </TSDiv>
                     </TSDiv>
                 </TSDiv>
+            </TSDiv>
+
+            <TSDiv tag="section">
+                <TSDiv className="flex items-center justify-between">
+                    <TSDiv>
+                        <TSDiv tag="h2" className="text-lg font-semibold">Relay Template Test Hook</TSDiv>
+                        <TSDiv tag="p" className="text-sm">Open the hosted test hook without adding a peer or using Connect.</TSDiv>
+                    </TSDiv>
+                    <TSDiv
+                        tag="button"
+                        type="button"
+                        onClick={handleOpenTestHook}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded shadow text-sm font-medium"
+                    >
+                        Open in New Tab
+                    </TSDiv>
+                </TSDiv>
+                <TSDiv className="text-xs text-[var(--text-secondary)] mt-2 break-all">{testHookUrl}</TSDiv>
             </TSDiv>
 
             <TSDiv tag="section">
@@ -318,7 +377,7 @@ export function SettingsTab() {
                             type="checkbox"
                             className="sr-only peer"
                             checked={isServer}
-                            onChange={(e) => setSetting(e.target.checked ? 'server-only' : 'client-only')}
+                            onChange={(e) => setSetting(e.target.checked ? 'server-only' : 'wasm')}
                         />
                         <TSDiv
                             className="w-12 h-6 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors relative">

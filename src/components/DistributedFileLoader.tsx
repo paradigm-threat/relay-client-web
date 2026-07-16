@@ -80,9 +80,11 @@ export function DistributedFileLoader({
     loadingRef.current = abort
 
     ;(async () => {
+      let lastStatus: LoadingStatus = 'idle'
       try {
         await loadDistributedFile(src, abort.signal, (newStatus, newMessage, newProgress) => {
           if (abort.signal.aborted) return
+          lastStatus = newStatus
           setStatus(newStatus)
           setMessage(newMessage)
           if (newProgress !== undefined) setProgress(newProgress)
@@ -120,7 +122,7 @@ export function DistributedFileLoader({
       } catch (err) {
         if (abort.signal.aborted) return
         const error = err instanceof Error ? err : new Error(String(err))
-        const detailed = buildDetailedErrorMessage(src, error, status)
+        const detailed = buildDetailedErrorMessage(src, error, lastStatus)
         setStatus('error')
         setMessage(error.message)
         onError?.(error, detailed)
@@ -201,7 +203,7 @@ async function loadTorrentFile(
     // TODO: Replace with actual dynamic import when library is added
     // const WebTorrent = await import('webtorrent').then(m => m.default)
     // For now, we simulate the process
-    await simulateLibraryLoad(signal, 'WebTorrent')
+    await simulateLibraryLoad(signal)
 
     if (signal.aborted) throw new Error('Loading cancelled')
 
@@ -213,7 +215,7 @@ async function loadTorrentFile(
 
     // Simulate connecting to the torrent network
     // TODO: Replace with actual WebTorrent client initialization
-    await simulateNetworkConnection(signal, 'torrent')
+    await simulateNetworkConnection(signal)
 
     if (signal.aborted) throw new Error('Loading cancelled')
 
@@ -247,7 +249,7 @@ async function loadIpfsFile(
     // TODO: Replace with actual dynamic import when library is added
     // const IPFS = await import('ipfs').then(m => m.default)
     // For now, we simulate the process
-    await simulateLibraryLoad(signal, 'IPFS')
+    await simulateLibraryLoad(signal)
 
     if (signal.aborted) throw new Error('Loading cancelled')
 
@@ -257,7 +259,7 @@ async function loadIpfsFile(
     onUpdate('connecting', 'Connecting to IPFS network...')
 
     // Simulate IPFS initialization
-    await simulateNetworkConnection(signal, 'ipfs')
+    await simulateNetworkConnection(signal)
 
     if (signal.aborted) throw new Error('Loading cancelled')
 
@@ -279,7 +281,7 @@ async function loadIpfsFile(
 /**
  * Simulates library loading with a realistic delay
  */
-function simulateLibraryLoad(signal: AbortSignal, _libName: string): Promise<void> {
+function simulateLibraryLoad(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       if (signal.aborted) {
@@ -299,7 +301,7 @@ function simulateLibraryLoad(signal: AbortSignal, _libName: string): Promise<voi
 /**
  * Simulates network connection with a realistic delay
  */
-function simulateNetworkConnection(signal: AbortSignal, _type: string): Promise<void> {
+function simulateNetworkConnection(signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       if (signal.aborted) {

@@ -1,34 +1,46 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { TSDiv } from './TSDiv'
 import HookRenderer from './ThemedHookRenderer'
-import { parseMarkdownToAstJson } from '../services/relayRuntimeWasm'
+import {
+  normalizePresetRemoteHookBase,
+  resolvePresetRemoteHook,
+} from '../config/presetRemoteHook.ts'
+import {
+  DEFAULT_CLIENT_GET_HOOK_REPO_PATH,
+  repoRelativeHookPathToUrlPath,
+} from '../constants/relayClientDefaults.ts'
+import { MarkdownRenderer, ensureRelayMarkdownWasm } from '../relayMarkdown'
 
-const HOOK_PATH = '/hooks/client/get.jsx'
-const HOOK_HOST = 'http://localhost:8002'
+const SAMPLE_MD = `# Markdown → md2ast (WASM)\n\n**relay-markdown** renders this via relay-runtime WASM.\n\n- Item one\n- Item two\n`
 
-const SAMPLE_MD = `# Markdown → md2jsx (WASM)\n\n**relay-runtime** parses this via \`markdown_to_ast_json\`.\n\n- Item one\n- Item two\n`
+/** Default mirrors local static hook servers (same as preset docs); overridden when preset resolves. */
+const DEFAULT_LOCAL_HOOK_ORIGIN = 'http://localhost:3011'
+
+function resolveTestTabHookTarget (): { hookHost: string; hookPath: string } {
+  const r = resolvePresetRemoteHook()
+  if (r.kind === 'ok') {
+    try {
+      return {
+        hookHost: normalizePresetRemoteHookBase(r.base),
+        hookPath: repoRelativeHookPathToUrlPath(DEFAULT_CLIENT_GET_HOOK_REPO_PATH),
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return {
+    hookHost: DEFAULT_LOCAL_HOOK_ORIGIN,
+    hookPath: repoRelativeHookPathToUrlPath(DEFAULT_CLIENT_GET_HOOK_REPO_PATH),
+  }
+}
 
 export function TestTab () {
+  const { hookHost, hookPath } = resolveTestTabHookTarget()
+
   const transpilerVersion = (globalThis as { __hook_transpiler_version?: string }).__hook_transpiler_version || 'not loaded'
-  const [astJson, setAstJson] = useState<string>('')
-  const [astErr, setAstErr] = useState<string | null>(null)
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const j = await parseMarkdownToAstJson(SAMPLE_MD, [])
-        if (!cancelled) {
-          setAstJson(j)
-          setAstErr(null)
-        }
-      } catch (e) {
-        if (!cancelled) setAstErr(e instanceof Error ? e.message : String(e))
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
+    ensureRelayMarkdownWasm()
   }, [])
 
   return (
@@ -41,29 +53,21 @@ export function TestTab () {
           </TSDiv>
         </TSDiv>
         <TSDiv className="text-sm text-[var(--text-secondary)] mt-2">
-          <strong>md2jsx via relay-runtime WASM</strong>
-          {' '}
-          — sample AST (from bundled <code>markdown_to_ast_json</code>):
+          <strong>md2ast via @clevertree/relay-markdown</strong>
         </TSDiv>
-        {astErr
-          ? (
-            <TSDiv className="mt-2 text-red-600 text-sm">{astErr}</TSDiv>
-            )
-          : (
-            <TSDiv tag="pre" className="mt-2 text-xs overflow-auto max-h-40 bg-black/5 dark:bg-white/5 p-2 rounded">
-              {astJson || '…loading'}
-            </TSDiv>
-            )}
+        <MarkdownRenderer content={SAMPLE_MD} className="mt-3 prose prose-sm dark:prose-invert max-w-none" />
       </TSDiv>
       <TSDiv className="p-4 text-sm text-[var(--text-secondary)] border-b border-[var(--border)]">
         <TSDiv tag="p">
-          Hook stub host <code>{HOOK_HOST}</code> path <code>{HOOK_PATH}</code>
+          Remote hook via WASM <code>renderHook</code>
+          {' '}
+          — host <code>{hookHost}</code> path <code>{hookPath}</code>
         </TSDiv>
       </TSDiv>
       <TSDiv className="flex-1 overflow-hidden">
         <HookRenderer
-          host={HOOK_HOST}
-          hookPath={HOOK_PATH}
+          host={hookHost}
+          hookPath={hookPath}
         />
       </TSDiv>
     </TSDiv>

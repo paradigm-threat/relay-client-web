@@ -48,7 +48,7 @@ export default defineConfig({
   },
   assetsInclude: ['**/*.wasm'],
   optimizeDeps: {
-    exclude: ['@clevertree/hook-transpiler', '@clevertree/themed-styler'],
+    exclude: ['@clevertree/themed-styler'],
     esbuildOptions: {
       target: 'es2022',
     },

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Relay embed SSR error (local)</title>
+  <link rel="stylesheet" href="/assets/embed.css"/>
+  <style>html,body,#root{margin:0;height:100%;}</style>
+</head>
+<body>
+  <!-- clientHookPath points at a hook that cannot run: hydration must fail, but the
+       SSR markup below must stay visible with a .relay-hook-error panel on top. -->
+  <div id="root" data-relay-ssr="1"><div class="ssr-hydrate-demo" id="ssr-hydrate-demo"><h1>SSR Hydrate Demo</h1><p id="ssr-static-line">Static content for no-JS browsers</p><span id="ssr-count">Count: 0</span><button type="button" id="ssr-increment">Increment</button></div></div>
+  <script type="application/json" id="relay-embed-config">{"repo":"demo","branch":"main","initialPath":"/README.md","clientHookPath":"/hooks/does-not-exist.jsx"}</script>
+  <script type="module" src="/assets/embed.js"></script>
+</body>
+</html>

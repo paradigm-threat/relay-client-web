@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useFetchContent } from '../plugins'
-import { MarkdownRenderer } from '@clevertree/hook-transpiler'
-import { unifiedBridge } from '@clevertree/themed-styler'
+import { RepoMarkdownView } from '../components/RepoMarkdownView'
+import { unifiedBridge } from '../shims/themed-styler'
 
 interface RouterProps {
   path: string
@@ -13,6 +13,10 @@ export function Router({ path, navigate }: RouterProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const fetchContent = useFetchContent()
+
+  useEffect(() => {
+    unifiedBridge.registerUsage('article', {})
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -87,10 +91,6 @@ export function Router({ path, navigate }: RouterProps) {
   }
 
   return (
-    <MarkdownRenderer 
-      content={content} 
-      navigate={navigate}
-      onElement={(tag, props) => unifiedBridge.registerUsage(tag, props)}
-    />
+    <RepoMarkdownView markdown={content} sourcePath={path} />
   )
 }

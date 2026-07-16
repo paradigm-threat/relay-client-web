@@ -4,6 +4,8 @@ import {
   applyDefaultClientGetHook,
   DEFAULT_CLIENT_GET_HOOK_REPO_PATH,
   repoRelativeHookPathToUrlPath,
+  staticRelayOptionsFallback,
+  STATIC_RELAY_FALLBACK_REPO,
 } from '../constants/relayClientDefaults.ts'
 
 test('applyDefaultClientGetHook fills missing get path', () => {
@@ -21,4 +23,12 @@ test('applyDefaultClientGetHook preserves explicit path', () => {
 test('repoRelativeHookPathToUrlPath', () => {
   assert.equal(repoRelativeHookPathToUrlPath('hooks/client/get.jsx'), '/hooks/client/get.jsx')
   assert.equal(repoRelativeHookPathToUrlPath('/hooks/client/get.jsx'), '/hooks/client/get.jsx')
+})
+
+test('staticRelayOptionsFallback has repos and default hook path', () => {
+  const o = staticRelayOptionsFallback()
+  assert.equal(Array.isArray(o.repos), true)
+  assert.ok(o.repos.length >= 1)
+  assert.equal(o.repos[0].name, STATIC_RELAY_FALLBACK_REPO)
+  assert.equal(o.client?.hooks?.get?.path, DEFAULT_CLIENT_GET_HOOK_REPO_PATH)
 })

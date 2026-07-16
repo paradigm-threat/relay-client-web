@@ -33,12 +33,6 @@
       ],
       "@clevertree/themed-styler": [
         "./src/shims/themed-styler.ts"
-      ],
-      "@clevertree/hook-transpiler": [
-        "./src/shims/hook-transpiler.tsx"
-      ],
-      "@clevertree/markdown": [
-        "./src/shims/markdown.tsx"
       ]
     }
   },

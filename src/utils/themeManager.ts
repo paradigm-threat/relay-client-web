@@ -115,16 +115,19 @@ export class ThemeManager {
 
     if (mediaQuery.addEventListener) {
       mediaQuery.addEventListener('change', handleChange);
-    } else if ((mediaQuery as any).addListener) {
-      // Legacy support
-      (mediaQuery as any).addListener(handleChange);
+    } else {
+      type LegacyMediaQueryList = MediaQueryList & {
+        addListener?: (listener: (this: MediaQueryList, ev: MediaQueryListEvent) => void) => void;
+      };
+      const legacy = mediaQuery as LegacyMediaQueryList;
+      legacy.addListener?.(handleChange);
     }
   }
 
   /**
    * Validate theme name
    */
-  private static isValidTheme(value: any): value is ThemeName {
+  private static isValidTheme(value: unknown): value is ThemeName {
     return value === 'light' || value === 'dark';
   }
 

@@ -1,13 +1,21 @@
 // Main application hook - entry point for runtime-transpiled JSX
-// Renders the entire app using themed-styler and hook-transpiler
+// CleverScript-compatible. Works on web and native (relay-runtime).
 import React, { useState, useEffect, lazy, Suspense } from 'react'
-import ErrorBoundary from './errorBoundary.jsx'
 
-// Lazy load page components
-const Home = lazy(() => import('./home.jsx'))
-const Settings = lazy(() => import('./settings.jsx'))
+// Lazy load page components — paths must match asset keys in module map (e.g. hooks/home.jsx)
+const Home = lazy(() => import('hooks/home.jsx'))
+const Settings = lazy(() => import('hooks/settings.jsx'))
+const PeerContent = lazy(() => import('hooks/peerContent.jsx'))
+const Demo = lazy(() => import('hooks/demo.jsx'))
+const UseStateDemo = lazy(() => import('hooks/use-state-demo.jsx'))
+const StyleKeywords = lazy(() => import('hooks/style-keywords.jsx'))
+const CleverScriptFeatures = lazy(() => import('hooks/cleverscript-features.jsx'))
+const SimpleJsx = lazy(() => import('hooks/simple-jsx.jsx'))
+const NestedStructure = lazy(() => import('hooks/nested-structure.jsx'))
+const StringKeywords = lazy(() => import('hooks/string-keywords.jsx'))
 
-// Loading fallback component
+const STORAGE_KEY_ACTIVE_TAB = 'relay:activeTab'
+
 function LoadingFallback() {
     return (
         <div className="flex items-center justify-center h-full w-full">
@@ -19,41 +27,109 @@ function LoadingFallback() {
 }
 
 export default function App() {
-    if (!React || !useState || !useEffect) {
-        throw new Error('React runtime not provided to hook')
+    const getInitialState = () => {
+        try {
+            const storedTab = localStorage.getItem(STORAGE_KEY_ACTIVE_TAB)
+            if (storedTab) {
+                const parsed = JSON.parse(storedTab)
+                const tabId = parsed.tabId
+                const storedTabs = parsed.tabs
+                if (storedTabs && Array.isArray(storedTabs) && storedTabs.length > 0) {
+                    return { activeTab: tabId || 'home', tabs: storedTabs }
+                }
+            }
+        } catch (e) {
+            // fallback
+        }
+        return {
+            activeTab: 'home',
+            tabs: [
+                { id: 'home', title: 'Home', isHome: true },
+                { id: 'demo', title: 'Demo' },
+                { id: 'styles', title: 'Styles' },
+                { id: 'simple', title: 'Simple' },
+                { id: 'nested', title: 'Nested' },
+                { id: 'string', title: 'String' },
+                { id: 'cleverscript', title: 'CleverScript' },
+                { id: 'settings', title: 'Settings' }
+            ]
+        }
     }
-    const [activeTab, setActiveTab] = useState('settings')
-    const [tabs] = useState([
-        { id: 'home', title: 'Home', isHome: true },
-        { id: 'settings', title: 'Settings' }
-    ])
 
-    // Apply theme on mount
+    const initialState = getInitialState()
+    const [activeTab, setActiveTab] = useState(initialState.activeTab)
+    const [tabs, setTabs] = useState(initialState.tabs)
+
     useEffect(() => {
-        // Theme will be applied by styler
-        console.log('[App Hook] Mounted')
-    }, [])
+        try {
+            localStorage.setItem(STORAGE_KEY_ACTIVE_TAB, JSON.stringify({ tabId: activeTab, tabs }))
+        } catch (e) {
+            // ignore
+        }
+    }, [activeTab, tabs])
+
+    const openPeerTab = (host) => {
+        const existingTab = tabs.find(t => t.host === host)
+        if (existingTab) {
+            setActiveTab(existingTab.id)
+            return
+        }
+        const parts = host.split('//')
+        const afterScheme = parts.length > 1 ? parts[1] : host
+        const firstPart = afterScheme.split('/')[0]
+        const title = firstPart || host
+        const newTab = {
+            id: 'peer-' + Date.now(),
+            title,
+            host,
+            isPeer: true
+        }
+        const updatedTabs = tabs.concat([newTab])
+        setTabs(updatedTabs)
+        setActiveTab(newTab.id)
+    }
+
+    const closeTab = (e, tabId) => {
+        if (e && e.stopPropagation) e.stopPropagation()
+        const tabToClose = tabs.find(t => t.id === tabId)
+        if (!tabToClose || tabToClose.isHome || tabId === 'settings') return
+
+        const updatedTabs = tabs.filter(t => t.id !== tabId)
+        setTabs(updatedTabs)
+
+        if (activeTab === tabId) {
+            setActiveTab('home')
+        }
+    }
 
     const handleTabClick = (tabId) => {
         setActiveTab(tabId)
     }
 
     const renderContent = () => {
-        switch (activeTab) {
-            case 'home':
-                return <Home />
-            case 'settings':
-                return <Settings />
-            default:
-                return (
-                    <div className="flex items-center justify-center h-full w-full">
-                        <div className="text-center">
-                            <h2 className="mb-2 text-2xl font-semibold">No content</h2>
-                            <p className="text-base">Select a tab</p>
-                        </div>
-                    </div>
-                )
+        const currentTab = tabs.find(t => t.id === activeTab)
+
+        if (currentTab && currentTab.isPeer) {
+            return <PeerContent host={currentTab.host} />
         }
+
+        if (activeTab === 'home') return <Home openPeerTab={openPeerTab} />
+        if (activeTab === 'demo') return <Demo />
+        if (activeTab === 'styles') return <StyleKeywords />
+        if (activeTab === 'simple') return <SimpleJsx />
+        if (activeTab === 'nested') return <NestedStructure />
+        if (activeTab === 'string') return <StringKeywords />
+        if (activeTab === 'cleverscript') return <CleverScriptFeatures />
+        if (activeTab === 'settings') return <Settings />
+
+        return (
+            <div className="flex items-center justify-center h-full w-full">
+                <div className="text-center">
+                    <h2 className="mb-2 text-2xl font-semibold">No content</h2>
+                    <p className="text-base">Select a tab</p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -67,10 +143,9 @@ export default function App() {
                             return (
                                 <div
                                     key={tab.id}
-                                    className={`flex items-center gap-2 px-4 py-2 border border-b-2 rounded-t-lg cursor-pointer transition-all flex-shrink-0 min-w-32 max-w-60 ${isActive
+                                    className={'flex items-center gap-2 px-4 py-2 border border-b-2 rounded-t-lg cursor-pointer transition-all flex-shrink-0 min-w-32 max-w-60 ' + (isActive
                                         ? 'border-b-blue-500 font-semibold bg-surface'
-                                        : 'border-b-transparent'
-                                        }`}
+                                        : 'border-b-transparent')}
                                     onClick={() => handleTabClick(tab.id)}
                                 >
                                     <span
@@ -79,6 +154,15 @@ export default function App() {
                                     >
                                         {tab.title}
                                     </span>
+                                    {tab.isPeer && (
+                                        <button
+                                            onClick={(ev) => closeTab(ev, tab.id)}
+                                            className="ml-1 text-gray-400 hover:text-red-600 text-xs"
+                                            title="Close tab"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
                                 </div>
                             )
                         })}
@@ -89,11 +173,9 @@ export default function App() {
             {/* Main Content Area */}
             <div className="flex flex-1 overflow-hidden">
                 <main className="flex-1 flex flex-col overflow-hidden">
-                    <ErrorBoundary>
-                        <Suspense fallback={<LoadingFallback />}>
-                            {renderContent()}
-                        </Suspense>
-                    </ErrorBoundary>
+                    <Suspense fallback={<LoadingFallback />}>
+                        {renderContent()}
+                    </Suspense>
                 </main>
             </div>
         </div>

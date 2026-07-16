@@ -83,6 +83,8 @@ export interface PluginConfig {
   branch?: string
   // Repository to fetch from (for Relay server)
   repo?: string
+  /** Client-side navigation (SPA); when set, overrides default History-only behavior */
+  onNavigate?: (path: string, opts?: { replace?: boolean }) => void
 }
 
 /**
@@ -106,7 +108,7 @@ export interface Plugin {
   fetchContent: (path: string) => Promise<string>
   
   // Navigate to a path (platform-specific)
-  navigate?: (path: string) => void
+  navigate?: (path: string, opts?: { replace?: boolean }) => void
   
   // Get the current platform's media capabilities
   getMediaCapabilities?: () => Promise<MediaCapabilities>

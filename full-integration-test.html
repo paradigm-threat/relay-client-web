@@ -64,7 +64,7 @@ export default async function getClient(ctx) {
 }`;
                 
                 const wasmTranspile = globalThis.__hook_transpile_jsx;
-                const filename = 'get-client.jsx';
+                const filename = 'get.jsx';
                 const out1 = await wasmTranspile(hookCode, filename);
                 
                 log(`<strong>Hook code transpilation:</strong><br>

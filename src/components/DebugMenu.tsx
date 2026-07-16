@@ -71,9 +71,9 @@ export function DebugMenu() {
                             the HTML below:</TSDiv>
 
                         <textarea
-                            value={document.documentElement.outerHTML}
                             readOnly
-                            className="flex-1 border rounded p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3 overflow-auto"
+                            value={document.documentElement.outerHTML}
+                            className="flex-1 border rounded p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3 overflow-auto min-h-[200px]"
                         />
 
                         <TSDiv className="flex gap-2">

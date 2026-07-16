@@ -4,18 +4,21 @@ import { unifiedBridge, styleManager } from '@clevertree/themed-styler'
 
 type DivProps = React.DetailedHTMLProps<React.HTMLAttributes<HTMLDivElement>, HTMLDivElement> & {
   tag?: string
-  [key: string]: any
+  type?: 'submit' | 'button' | 'reset'
+  disabled?: boolean
 }
 
-export const TSDiv: React.FC<DivProps> = (props) => {
+export function TSDiv (props: DivProps): React.JSX.Element {
   return (
     <BaseTSDiv
-      {...props}
+      {...(props as React.ComponentProps<typeof BaseTSDiv>)}
       onElement={(tag, p) => {
         try {
           unifiedBridge.registerUsage(tag, p)
           styleManager.requestRender()
-        } catch (e) { }
+        } catch {
+          /* registerUsage is best-effort */
+        }
       }}
     />
   )

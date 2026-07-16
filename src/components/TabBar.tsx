@@ -19,7 +19,7 @@ export function TabBar({ onTabChange }: TabBarProps) {
     onTabChange?.(tabId)
   }
 
-  const handleCloseTab = (event: React.MouseEvent<HTMLButtonElement>, tabId: string) => {
+  const handleCloseTab = (event: React.MouseEvent<HTMLElement>, tabId: string) => {
     event.stopPropagation()
     closeTab(tabId)
   }
@@ -49,7 +49,7 @@ export function TabBar({ onTabChange }: TabBarProps) {
                 {!tab.isHome && tab.id !== 'settings' && (
                   <TSDiv
                     tag="button"
-                    onClick={(event: any) => handleCloseTab(event, tab.id)}
+                    onClick={(event: React.MouseEvent<HTMLElement>) => handleCloseTab(event, tab.id)}
                     className="border-none bg-transparent text-xl cursor-pointer text-[var(--text-secondary)] p-0 w-6 h-6 flex items-center justify-center rounded transition-all flex-shrink-0"
                     aria-label="Close tab"
                   >
