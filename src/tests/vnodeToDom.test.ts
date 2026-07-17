@@ -82,6 +82,33 @@ test('vnodeToDom applies inline Style props', () => {
   assert.equal(root.style.paddingTop, '8px')
 })
 
+test('vnodeToDom adds pixels to numeric dimensional styles', () => {
+  const vnode = {
+    Element: {
+      tag: 'div',
+      props: {
+        style: {
+          type: 'Style',
+          value: {
+            borderLeftWidth: '2',
+            width: 96,
+            opacity: '0.5',
+            lineHeight: '1.6',
+            margin: '0',
+          },
+        },
+      },
+      children: [],
+    },
+  }
+  const root = vnodeToDom(vnode, () => {}) as HTMLElement
+  assert.equal(root.style.borderLeftWidth, '2px')
+  assert.equal(root.style.width, '96px')
+  assert.equal(root.style.opacity, '0.5')
+  assert.equal(root.style.lineHeight, '1.6')
+  assert.equal(root.style.margin, '0px')
+})
+
 test('vnodeToDom button click calls mock invokeHandler', () => {
   const invoked: number[] = []
   const root = vnodeToDom(sampleVNode, (id: number) => {

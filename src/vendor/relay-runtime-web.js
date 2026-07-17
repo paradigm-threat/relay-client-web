@@ -6,12 +6,59 @@ import init, {
   run_hook_with_host,
   get_themes,
   set_theme_and_render,
+  get_injected_css,
   push_message_from_host,
   invoke_handler,
   consume_render_requested,
 } from '../wasm/relay_runtime_pkg/relay_runtime.js';
 
-let _styleId = 'themed-styler-output';
+let _styleId = 'relay-ssr-theme';
+
+/** Ensure a <style id=...> exists in <head>; prefer SSR-injected #relay-ssr-theme when present. */
+function ensureStyleElement(id) {
+  if (typeof document === 'undefined') return null;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('style');
+    el.id = id;
+    document.head.appendChild(el);
+  }
+  return el;
+}
+
+/** Apply CSS from the last run_hook_with_host into the document stylesheet. */
+function applyInjectedCss() {
+  try {
+    const css = typeof get_injected_css === 'function' ? get_injected_css() : '';
+    if (!css || !String(css).trim()) return;
+    const styleEl = ensureStyleElement(_styleId);
+    if (styleEl) styleEl.textContent = String(css);
+  } catch (_) {
+    /* optional */
+  }
+}
+
+const unitlessStyleProperties = new Set([
+  'animationIterationCount', 'columnCount', 'fillOpacity', 'flex', 'flexGrow',
+  'flexShrink', 'fontWeight', 'gridColumn', 'gridRow', 'lineHeight', 'opacity',
+  'order', 'orphans', 'scale', 'strokeOpacity', 'strokeWidth', 'tabSize',
+  'widows', 'zIndex', 'zoom',
+]);
+
+/** Match React style semantics: non-zero numeric dimensions become CSS pixels. */
+function normalizeStyleValue(property, value) {
+  const stringValue = String(value).trim();
+  if (
+    stringValue === ''
+    || property.startsWith('--')
+    || unitlessStyleProperties.has(property)
+    || !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(stringValue)
+    || Number(stringValue) === 0
+  ) {
+    return stringValue;
+  }
+  return `${stringValue}px`;
+}
 
 /**
  * Install globalThis.__relay_host_fetch(url, initJson) for CleverScript Host.fetch (sync XHR).
@@ -529,7 +576,7 @@ export function vnodeToDom(v, invokeHandler = invoke_handler, onAfterInvoke = nu
           if (styleObj && typeof styleObj === 'object') {
             for (const [pk, pv] of Object.entries(styleObj)) {
               if (pv != null && typeof pv !== 'object') {
-                el.style[pk] = String(pv);
+                el.style[pk] = normalizeStyleValue(pk, pv);
               }
             }
           }
@@ -602,7 +649,7 @@ export function vnodeToDom(v, invokeHandler = invoke_handler, onAfterInvoke = nu
           if (styleObj && typeof styleObj === 'object') {
             for (const [pk, pv] of Object.entries(styleObj)) {
               if (pv != null && typeof pv !== 'object') {
-                el.style[pk] = String(pv);
+                el.style[pk] = normalizeStyleValue(pk, pv);
               }
             }
           }
@@ -959,6 +1006,7 @@ export async function renderHook(container, options = {}) {
         );
         if (!consume_render_requested()) break;
       }
+      applyInjectedCss();
       const vnode = JSON.parse(vnodeJson);
       const tryHydrate = hydrate && !hydratedOnce && container.dataset?.relaySsr === '1';
       if (tryHydrate) {
@@ -1154,6 +1202,7 @@ export async function bootstrap(options = {}) {
           console.error('[relay-runtime] run_hook_with_host failed:', e);
           throw e;
         }
+        applyInjectedCss();
         root.innerHTML = '';
         const vnode = JSON.parse(vnodeJson);
         const el = vnodeToDom(vnode, invoke_handler, doRender);
