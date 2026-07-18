@@ -6,9 +6,15 @@
   <title>Relay embed SSR (local)</title>
   <link rel="stylesheet" href="/assets/embed.css"/>
   <style>html,body,#root{margin:0;height:100%;}</style>
+  <style id="relay-ssr-theme">/* fixture: dual theme stubs */
+.demo-box{background:#fff;color:#111}
+@media (prefers-color-scheme: dark){.demo-box{background:#111;color:#fff}}
+html.dark .demo-box{background:#111;color:#fff}
+html.light .demo-box{background:#fff;color:#111}
+</style>
 </head>
 <body>
-  <div id="root" data-relay-ssr="1"><div class="ssr-hydrate-demo" id="ssr-hydrate-demo"><h1>SSR Hydrate Demo</h1><p id="ssr-static-line">Static content for no-JS browsers</p><span id="ssr-count">Count: 0</span><button type="button" id="ssr-increment">Increment</button></div></div>
+  <div id="root" data-relay-ssr="1"><div class="ssr-hydrate-demo demo-box" id="ssr-hydrate-demo"><h1>SSR Hydrate Demo</h1><p id="ssr-static-line">Static content for no-JS browsers</p><span id="ssr-count">Count: 0</span><button type="button" id="ssr-increment" disabled>Increment</button><button type="button" id="ssr-theme-toggle" disabled>Theme: light</button></div></div>
   <script type="application/json" id="relay-embed-config">{"repo":"demo","branch":"main","initialPath":"/README.md","clientHookPath":"/hooks/ssr-hydrate-demo.jsx"}</script>
   <script type="module" src="/assets/embed.js"></script>
 </body>

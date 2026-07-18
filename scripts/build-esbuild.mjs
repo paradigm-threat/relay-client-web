@@ -143,10 +143,11 @@ export async function bundle({ serve = false } = {}) {
   const opts = {
     entryPoints: {
       'main': path.join(srcDir, 'main.tsx'),
-      'embed': path.join(srcDir, 'embed-main.tsx'),
+      // WASM-only parked-site / ?embed=1 bootloader (no React).
+      'embed': path.join(srcDir, 'embed-main.ts'),
     },
     outdir: assetsDir,
-    publicPath: '/assets/',
+    publicPath: './',
     bundle: true,
     format: 'esm',
     sourcemap: true,

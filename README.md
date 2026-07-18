@@ -14,7 +14,9 @@
 
 Design docs: **[`../relay-gateway/docs/RELAY_CLIENT_WEB_SHELL.md`](../relay-gateway/docs/RELAY_CLIENT_WEB_SHELL.md)**.
 
-**Embed / full-page hook (no default chrome):** server may intercept GETs and return **HTML** that loads a **minimal** client bundle with a **preset** gateway and full-viewport **`hooks/client/get.jsx`** — see **[`../relay-gateway/docs/RELAY_EMBED_CLIENT_GET_INTERCEPT.md`](../relay-gateway/docs/RELAY_EMBED_CLIENT_GET_INTERCEPT.md)**.
+**Embed / full-page hook (no default chrome):** server may intercept GETs and return **HTML** that loads a **minimal** client bundle with a **preset** gateway and full-viewport **`hooks/client/get.jsx`** — see **[`../relay-gateway/docs/RELAY_EMBED_CLIENT_GET_INTERCEPT.md`](../relay-gateway/docs/RELAY_EMBED_CLIENT_GET_INTERCEPT.md)**. That **`embed.js`** entry is **WASM-only** (no npm React / ReactDOM); parked sites must not pull the `main.js` React SPA. CleverScript stays platform-agnostic (no direct `document` access); page scripts must not inspect WASM run-state — only the published glue API. If npm React is ever needed for a host feature, it belongs behind a **native component** boundary (deferred).
+
+**CDN publish (planned cutover):** build locally, then **`../relay-gateway/scripts/publish-web-assets.sh`** into **`relay-web-assets`** (signed `release` tip, **embed+WASM only — no React**). Gateway HTML pins **`/assets/c/{oid}/…`**. See **[`../relay-gateway/docs/RELAY_WEB_ASSETS.md`](../relay-gateway/docs/RELAY_WEB_ASSETS.md)**. Until fleet catalogs that repo, pack may still ship `dist/` as `/opt/relay/www` for local fallback.
 
 ### Local verification (pre-manual QA)
 

@@ -1,0 +1,18 @@
+themes:
+  light:
+    selectors:
+      ".demo-box":
+        background: "#ffffff"
+        color: "#111111"
+      ".ssr-hydrate-demo":
+        background: "#ffffff"
+        color: "#111111"
+  dark:
+    selectors:
+      ".demo-box":
+        background: "#111111"
+        color: "#f8fafc"
+      ".ssr-hydrate-demo":
+        background: "#111111"
+        color: "#f8fafc"
+current_theme: light

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/build-esbuild.mjs --serve",
-    "build": "npm run build:wasm && node scripts/build-esbuild.mjs",
+    "build": "npm run build:wasm && node scripts/build-esbuild.mjs && node scripts/assert-embed-no-react.mjs",
     "build:wasm": "bash ../relay-runtime/scripts/build-wasm-web.sh",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
