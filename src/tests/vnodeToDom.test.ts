@@ -28,6 +28,9 @@ mock.module('../wasm/relay_runtime_pkg/relay_runtime.js', {
     push_message_from_host: () => {},
     invoke_handler: () => {},
     consume_render_requested: () => false,
+    set_client_live: () => {},
+    is_client_live: () => false,
+    get_current_theme_name: () => '',
   },
 })
 
@@ -167,4 +170,39 @@ test('hydrateVnode returns false on tag mismatch', () => {
     },
   }
   assert.equal(hydrateVnode(vnode, container, () => {}), false)
+})
+
+test('vnodeToDom creates SVG in the SVG namespace with numeric size attrs', () => {
+  const SVG_NS = 'http://www.w3.org/2000/svg'
+  const vnode = {
+    Element: {
+      tag: 'svg',
+      props: {
+        width: { type: 'Number', value: 20 },
+        height: { type: 'Number', value: 20 },
+        viewBox: { type: 'String', value: '0 0 24 24' },
+        fill: { type: 'String', value: 'none' },
+        stroke: { type: 'String', value: 'currentColor' },
+      },
+      children: [
+        {
+          Element: {
+            tag: 'path',
+            props: {
+              d: { type: 'String', value: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z' },
+            },
+            children: [],
+          },
+        },
+      ],
+    },
+  }
+  const svg = vnodeToDom(vnode, () => {}) as SVGElement
+  assert.equal(svg.namespaceURI, SVG_NS)
+  assert.equal(svg.getAttribute('width'), '20')
+  assert.equal(svg.getAttribute('height'), '20')
+  assert.equal(svg.getAttribute('viewBox'), '0 0 24 24')
+  const path = svg.querySelector('path')
+  assert.ok(path)
+  assert.equal(path!.namespaceURI, SVG_NS)
 })
