@@ -1,0 +1,27 @@
+User-agent: *
+Allow: /
+Disallow: /hooks/
+Disallow: /wasm/
+Disallow: /test
+Disallow: /debug
+Disallow: /embed.html
+Disallow: /embed-ssr.html
+Disallow: /embed-ssr-error.html
+Disallow: /index-debug.html
+Disallow: /console-monitor.html
+Disallow: /full-integration-test.html
+Disallow: /hook-simulator.html
+Disallow: /hook-test.html
+Disallow: /transpiler-test.html
+Disallow: /wasm-load-test.html
+Disallow: /wasm-test.html
+Disallow: /wasm-verification.html
+Disallow: /test-complete.html
+Disallow: /test-jsx.html
+Disallow: /test-jsx-validation.html
+Disallow: /test-react-mount.html
+Disallow: /test-transpiler.html
+Disallow: /test-import.html
+Disallow: /app-with-console.html
+
+Sitemap: https://relaygateway.net/sitemap.xml
