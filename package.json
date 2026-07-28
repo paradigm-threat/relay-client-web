@@ -17,7 +17,8 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:fan-edits": "playwright test -c playwright-fan-edits.config.ts",
     "serve:fan-edits": "node scripts/serve-fan-edits-gateway.mjs",
-    "serve:relay": "npm run build && node scripts/serve-relay.mjs"
+    "serve:relay": "npm run build && node scripts/serve-relay.mjs",
+    "vercel-build": "mkdir -p dist && cp -R public/. dist/"
   },
   "dependencies": {
     "react": "^19.2.0",

@@ -1,4 +1,8 @@
 {
+  "framework": null,
+  "installCommand": "echo 'skip install (static SEO shell)'",
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": "dist",
   "redirects": [
     {
       "source": "/:path*",
@@ -18,8 +22,9 @@
     }
   ],
   "rewrites": [
-    { "source": "/robots.txt", "destination": "/robots.txt" },
-    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
-    { "source": "/((?!assets|wasm|hooks|icon\\.png|robots\\.txt|sitemap\\.xml).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!assets|wasm|hooks|icon\\.png|robots\\.txt|sitemap\\.xml).*)",
+      "destination": "/index.html"
+    }
   ]
 }
