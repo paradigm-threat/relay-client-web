@@ -1,0 +1,31 @@
+{
+  "name": "relay-runtime",
+  "type": "module",
+  "collaborators": [
+    "Ari Asulin"
+  ],
+  "description": "Universal client hook runtime: parsing, execution, rendering, debugging",
+  "version": "0.1.2",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.com/clevertree/relay-runtime"
+  },
+  "files": [
+    "relay_runtime_bg.wasm",
+    "relay_runtime.js",
+    "relay_runtime.d.ts"
+  ],
+  "main": "relay_runtime.js",
+  "homepage": "https://gitlab.com/clevertree/relay-runtime",
+  "types": "relay_runtime.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "keywords": [
+    "relay",
+    "hooks",
+    "cleverscript",
+    "wasm"
+  ]
+}

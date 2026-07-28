@@ -1,6 +1,5 @@
 {
   "framework": null,
-  "installCommand": "echo 'skip install (static SEO shell)'",
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
   "redirects": [

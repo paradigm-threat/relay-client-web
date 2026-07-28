@@ -1,10 +1,22 @@
-#!/bin/bash
-# Build WASM modules from published Rust crates
-# Note: The Rust crates (hook-transpiler, themed-styler) are published on crates.io.
-# During development, WASM modules are pre-built and cached in src/wasm/
-# To rebuild from source, install wasm-pack and run: wasm-pack build --target web --release ../../../hook-transpiler
+#!/usr/bin/env bash
+# Build relay-runtime WASM into src/wasm/relay_runtime_pkg.
+# Skips when the package is already present unless FORCE_WASM=1 (Vercel ships a committed copy).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="${ROOT}/src/wasm/relay_runtime_pkg"
+GLUE="${OUT}/relay_runtime.js"
+WASM="${OUT}/relay_runtime_bg.wasm"
 
-echo "✓ WASM modules cached in src/wasm/"
-echo "  To rebuild from crates.io, run:"
-echo "    cd ../../../hook-transpiler && wasm-pack build --target web --release --out-dir ../../relay-clients/packages/web/src/wasm"
-echo "    cd ../../../themed-styler && wasm-pack build --target web --release --out-dir ../../relay-clients/packages/web/src/wasm"
+if [[ "${FORCE_WASM:-}" != "1" && -f "$GLUE" && -f "$WASM" ]]; then
+  echo "[build:wasm] Using existing package at $OUT (set FORCE_WASM=1 to rebuild)"
+  exit 0
+fi
+
+SCRIPT="${ROOT}/../relay-runtime/scripts/build-wasm-web.sh"
+if [[ ! -f "$SCRIPT" ]]; then
+  echo "[build:wasm] Missing $SCRIPT and no committed WASM at $OUT" >&2
+  echo "  Clone relay-runtime as a sibling, or commit src/wasm/relay_runtime_pkg/." >&2
+  exit 1
+fi
+
+bash "$SCRIPT"
