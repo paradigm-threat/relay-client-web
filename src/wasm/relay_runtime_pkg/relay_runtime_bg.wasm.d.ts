@@ -1,0 +1,38 @@
+/* tslint:disable */
+/* eslint-disable */
+export const memory: WebAssembly.Memory;
+export const consume_render_requested: () => number;
+export const get_current_theme_name: () => [number, number];
+export const get_injected_css: () => [number, number];
+export const get_pending_messages: () => [number, number];
+export const get_themes: () => [number, number];
+export const invoke_handler: (a: number) => [number, number];
+export const is_client_live: () => number;
+export const markdown_to_ast_json: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const post_message_to_host: (a: number, b: number) => [number, number];
+export const push_message_from_host: (a: number, b: number) => void;
+export const run_hook: (a: number, b: number) => [number, number, number, number];
+export const run_hook_with_file: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const run_hook_with_host: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+export const set_client_live: (a: number) => void;
+export const set_theme_and_render: (a: number, b: number) => [number, number];
+export const set_verbose: (a: number) => void;
+export const get_android_styles: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
+export const get_default_state_json: () => [number, number];
+export const get_theme_list_json: (a: number, b: number) => [number, number];
+export const get_version: () => [number, number];
+export const render_css_for_web: (a: number, b: number) => [number, number];
+export const set_theme_json: (a: number, b: number, c: number, d: number) => [number, number];
+export const themed_styler_free_string: (a: number) => void;
+export const themed_styler_render_css: (a: number) => number;
+export const themed_styler_version: () => number;
+export const wasm_bindgen_dad0a704de3b8813___closure__destroy___dyn_core_9b3796e30d99ddb7___ops__function__FnMut_____Output_______: (a: number, b: number) => void;
+export const wasm_bindgen_dad0a704de3b8813___convert__closures_____invoke_______true_: (a: number, b: number) => void;
+export const __wbindgen_malloc: (a: number, b: number) => number;
+export const __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+export const __wbindgen_exn_store: (a: number) => void;
+export const __externref_table_alloc: () => number;
+export const __wbindgen_externrefs: WebAssembly.Table;
+export const __wbindgen_free: (a: number, b: number, c: number) => void;
+export const __externref_table_dealloc: (a: number) => void;
+export const __wbindgen_start: () => void;

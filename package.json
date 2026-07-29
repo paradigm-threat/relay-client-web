@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node scripts/build-esbuild.mjs --serve",
     "build": "npm run build:wasm && node scripts/build-esbuild.mjs && node scripts/assert-embed-no-react.mjs",
-    "build:wasm": "bash ../relay-runtime/scripts/build-wasm-web.sh",
+    "build:wasm": "bash scripts/build-wasm.sh",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "preflight": "node scripts/preflight-local.mjs",
@@ -17,7 +17,8 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:fan-edits": "playwright test -c playwright-fan-edits.config.ts",
     "serve:fan-edits": "node scripts/serve-fan-edits-gateway.mjs",
-    "serve:relay": "npm run build && node scripts/serve-relay.mjs"
+    "serve:relay": "npm run build && node scripts/serve-relay.mjs",
+    "vercel-build": "npm run build"
   },
   "dependencies": {
     "react": "^19.2.0",

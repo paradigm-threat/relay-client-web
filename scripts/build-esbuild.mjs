@@ -191,7 +191,9 @@ export async function bundle({ serve = false } = {}) {
           const themed = path.join(srcDir, 'shims', 'themed-styler.ts')
           const transpiler = path.join(srcDir, 'shims', 'hook-transpiler.tsx')
           const markdown = path.join(srcDir, 'shims', 'markdown.tsx')
-          const md2astReact = path.resolve(root, '../relay-gateway/packages/md2ast-react/dist/index.js')
+          const md2astReactLocal = path.join(srcDir, 'shims', 'md2ast-react.tsx')
+          const md2astReactMonorepo = path.resolve(root, '../relay-gateway/packages/md2ast-react/dist/index.js')
+          const md2astReact = fs.existsSync(md2astReactMonorepo) ? md2astReactMonorepo : md2astReactLocal
           build.onResolve({ filter: /^@clevertree\/themed-styler$/ }, () => ({ path: themed }))
           build.onResolve({ filter: /^@clevertree\/hook-transpiler$/ }, () => ({ path: transpiler }))
           build.onResolve({ filter: /^@clevertree\/markdown$/ }, () => ({ path: markdown }))

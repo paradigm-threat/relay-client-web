@@ -56,5 +56,6 @@ Thumbs.db
 **/pkg/
 **/wasm-pack/**
 **/target/
-# Regenerate with: npm run build:wasm
-src/wasm/relay_runtime_pkg/
+# Committed relay-runtime web package is required for Vercel/CI without monorepo siblings.
+# Rebuild with: FORCE_WASM=1 npm run build:wasm
+.vercel
