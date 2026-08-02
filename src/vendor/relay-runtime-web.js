@@ -61,6 +61,7 @@ function syncHtmlThemeClass() {
     try {
       root.setAttribute('class', tip);
     } catch (_) {
+      /* classList optional */
       try {
         root.classList.remove('light', 'dark');
         root.classList.add(tip);
@@ -79,6 +80,22 @@ function syncHtmlThemeClass() {
   if (name !== 'light' && name !== 'dark') return;
   root.classList.remove('light', 'dark');
   root.classList.add(name);
+}
+
+/**
+ * Park tips style inactive chrome via html[data-pt-hydrated].
+ * "0" = SSR / pre-live; "1" = CleverScript client interactive (isClientLive).
+ * Gateway SSR HTML should emit data-pt-hydrated="0" on <html>; this flips to "1" once.
+ */
+function syncHtmlHydratedAttr(live) {
+  if (typeof document === 'undefined') return;
+  try {
+    const root = document.documentElement;
+    if (!root || typeof root.setAttribute !== 'function') return;
+    root.setAttribute('data-pt-hydrated', live ? '1' : '0');
+  } catch (_) {
+    /* optional */
+  }
 }
 
 const unitlessStyleProperties = new Set([
@@ -1020,6 +1037,7 @@ export async function renderHook(container, options = {}) {
   } catch (_) {
     /* optional until wasm rebuild */
   }
+  syncHtmlHydratedAttr(false);
 
   if (host) {
     const base = host.trim().replace(/\/+$/, '');
@@ -1185,6 +1203,7 @@ export async function renderHook(container, options = {}) {
           try {
             if (typeof set_client_live === 'function') set_client_live(true);
           } catch (_) { /* optional */ }
+          syncHtmlHydratedAttr(true);
           livePromoted = true;
           doRender();
           return;
@@ -1197,6 +1216,7 @@ export async function renderHook(container, options = {}) {
         try {
           if (typeof set_client_live === 'function') set_client_live(true);
         } catch (_) { /* optional */ }
+        syncHtmlHydratedAttr(true);
         livePromoted = true;
         // Re-run with isClientLive() true so interactive controls enable.
         for (let pass = 0; pass < 16; pass++) {
