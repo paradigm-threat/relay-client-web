@@ -1,16 +1,16 @@
 /**
- * Validates relay-client-web against real relay masters (default: relaynet nodes).
+ * Validates relay-client-web against real relay masters (default: dfw1).
  * Requires network access from the machine running Playwright.
  *
  * Env:
- *   E2E_RELAY_HOST   — substring to match a peer card (default: atlanta2.relaygateway.net)
+ *   E2E_RELAY_HOST   — substring to match a peer card (default: dfw1.relaygateway.net)
  *   PW_NO_SERVER=1   — do not spawn `npm run dev`; use existing server at PLAYWRIGHT_BASE_URL
  *
  * Run: npm run test:e2e
  */
 import { test, expect } from '@playwright/test'
 
-const RELAY_SUBSTR = process.env.E2E_RELAY_HOST ?? 'atlanta2.relaygateway.net'
+const RELAY_SUBSTR = process.env.E2E_RELAY_HOST ?? 'dfw1.relaygateway.net'
 
 test.describe.configure({ mode: 'serial' })
 

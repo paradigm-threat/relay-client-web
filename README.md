@@ -1,6 +1,6 @@
 # <img src="public/icon.png" width="32" height="32" align="center" /> Relay Client Web (React + TypeScript)
 
-**HTTP protocol (planned change):** **`X-Relay-Branch`** will be **removed** — encode repo/branch only via **`Host`** (`{repo}.{node}` or `{repo}{DELIM}{branch-slug}.{node}`). See **[`../relay-server/docs/DEPLOY_WEB_AND_CI.md`](../relay-server/docs/DEPLOY_WEB_AND_CI.md)** §8, §11. Until then, `src/plugins/web/index.ts` may still set legacy headers; track removal with relay-server.
+**HTTP protocol (planned change):** **`X-Relay-Branch`** will be **removed** — encode repo/branch only via **`Host`** (`{repo}.{node}` or `{repo}{DELIM}{branch-slug}.{node}`). See **[`../relay-gateway/docs/DEPLOY_WEB_AND_CI.md`](../relay-gateway/docs/DEPLOY_WEB_AND_CI.md)** §8, §11. Until then, `src/plugins/web/index.ts` may still set legacy headers; track removal with the gateway.
 
 ## Universal Relay shell (WASM + md2ast)
 
@@ -24,7 +24,7 @@ One command before testing in the browser:
 
 - **`npm run verify:local`** — **`preflight`** (WASM glue present), **`eslint`**, **`typecheck`**, **`npm test`**, **`npm run build`**.
 - **`PREFLIGHT_STRICT=1 npm run preflight`** — exits non-zero if `src/wasm/relay_runtime_pkg/` is missing (run **`npm run build:wasm`** first).
-- Serve static **`dist/`** through relay-server: **`npm run serve:relay`** — uses **`RELAY_SERVER_BIN`** (default `relay-server`), **`RELAY_REPO_ROOT`**, **`RELAY_STATIC_PORT`** (default `8080`).
+- Serve static **`dist/`** through the gateway: **`npm run serve:relay`** — uses **`RELAY_SERVER_BIN`** (default `relay-gateway`), **`RELAY_REPO_ROOT`**, **`RELAY_STATIC_PORT`** (default `8080`).
 
 Then open **`http://127.0.0.1:5173`** with **`npm run dev`**, or run browser tests:
 
@@ -32,7 +32,7 @@ Then open **`http://127.0.0.1:5173`** with **`npm run dev`**, or run browser tes
 
 - **`npx playwright install chromium`** once (browser binaries).
 - **`npm run test:e2e`** — starts **`npm run dev`**, runs **`e2e/relay-remote.spec.ts`**: home peer list, optional **remote relay open-tab** flow when a master is **Online**, and **Test** tab **`markdown_to_ast_json`** visibility.
-- **`E2E_RELAY_HOST`** — substring for which peer row to use (default: `node-dfw1.relaynet.online`).
+- **`E2E_RELAY_HOST`** — substring for which peer row to use (default: `dfw1.relaygateway.net`).
 - **`PW_NO_SERVER=1`** — use an already-running dev server; set **`PLAYWRIGHT_BASE_URL`** if not `http://127.0.0.1:5173`.
 - **`npm run test:e2e:preset`** — fullscreen **preset remote hook** (`playwright-preset.config.ts` injects **`RELAY_PUBLIC_PRESET_REMOTE_HOOK`**, default **`http://127.0.0.1:3011`**). Set **`E2E_PRESET_HOOK_BASE`** or start a static files server on that port; skips if the hook URL is not reachable.
 - **Chrome DevTools MCP (optional):** with preset env, open `/` and confirm a **GET** to `{base}/hooks/client/get.jsx`; check console for hard errors.

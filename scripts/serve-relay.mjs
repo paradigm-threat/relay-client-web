@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Serves `dist/` via relay-server (or compatible binary).
- * Env: RELAY_SERVER_BIN (default relay-server), RELAY_REPO_ROOT, RELAY_STATIC_PORT (default 8080)
+ * Serves `dist/` via relay-gateway (or compatible binary).
+ * Env: RELAY_SERVER_BIN (default relay-gateway), RELAY_REPO_ROOT, RELAY_STATIC_PORT (default 8080)
  */
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -15,7 +15,7 @@ if (!fs.existsSync(dist)) {
   process.exit(1)
 }
 
-const bin = process.env.RELAY_SERVER_BIN || 'relay-server'
+const bin = process.env.RELAY_SERVER_BIN || 'relay-gateway'
 const repoRoot = process.env.RELAY_REPO_ROOT || root
 const port = process.env.RELAY_STATIC_PORT || '8080'
 
