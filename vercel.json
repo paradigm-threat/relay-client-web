@@ -8,6 +8,16 @@
       "has": [{ "type": "host", "value": "www.relaygateway.net" }],
       "destination": "https://relaygateway.net/:path*",
       "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/favicon.ico",
+      "destination": "/icon.png",
+      "permanent": false
     }
   ],
   "headers": [
@@ -34,12 +44,6 @@
     {
       "source": "/wasm/:path*",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/((?!assets|wasm|hooks|icon\\.png|robots\\.txt|sitemap\\.xml).*)",
-      "destination": "/index.html"
     }
   ]
 }
