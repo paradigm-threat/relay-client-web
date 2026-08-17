@@ -16,6 +16,7 @@ export interface FullProbeResult {
   nodeFqdn?: string
   healthy?: boolean
   lastUpdateTs?: number
+  reposOk?: boolean
 }
 
 export async function fullProbePeer (host: string): Promise<FullProbeResult> {
@@ -31,7 +32,7 @@ export async function fullProbePeer (host: string): Promise<FullProbeResult> {
     }
   }
   const s = result.status
-  const statusRepos = (s.repos || []).filter((r) => r.on_disk)
+  const statusRepos = s.repos || []
   return {
     probes: [{
       protocol: 'https',
@@ -40,12 +41,15 @@ export async function fullProbePeer (host: string): Promise<FullProbeResult> {
       latencyMs: result.latencyMs,
     }],
     status: s,
-    repos: statusRepos.map((r) => r.name),
+    repos: statusRepos.filter((r) => r.in_catalog || r.on_disk).map((r) => r.name),
     statusRepos,
     gatewayVersion: s.self?.gateway_version,
-    repoCount: s.self?.repo_count ?? statusRepos.length,
+    repoCount: s.self?.repo_count ?? statusRepos.filter((r) => r.on_disk).length,
     nodeFqdn: s.self?.node_fqdn,
-    healthy: s.healthy,
+    // Reachable from this client. Do not use s.healthy — that is mesh-peer reachability
+    // and waiting on those probes was the fake "4000ms Degraded".
+    healthy: true,
+    reposOk: s.repos_ok,
     lastUpdateTs: Date.now(),
   }
 }

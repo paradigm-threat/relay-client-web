@@ -7,6 +7,7 @@ export interface NodeStatusRepo {
   on_disk: boolean
   in_catalog: boolean
   ok: boolean
+  description?: string
   publish_branch?: string
   publish_sha?: string
   head_branch?: string
@@ -26,6 +27,7 @@ export interface NodeStatus {
   schema_version: number
   status: string
   healthy: boolean
+  repos_ok?: boolean
   self?: NodeStatusSelf
   repos?: NodeStatusRepo[]
 }
@@ -49,7 +51,7 @@ export async function fetchNodeStatus (
   timeoutMs = 8000,
 ): Promise<FetchNodeStatusResult> {
   const origin = nodeOrigin.replace(/\/+$/, '')
-  const url = `${origin}/api/status?format=json`
+  const url = `${origin}/api/status?format=json&light=1`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   const started = typeof performance !== 'undefined' ? performance.now() : Date.now()

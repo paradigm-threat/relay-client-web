@@ -92,6 +92,101 @@ export function repoSiteOrigin (repo: string, nodeFqdn: string): string {
   return `https://${name}.${node}`
 }
 
+/** Minimal peer shape for mirror ranking (avoids importing the Zustand store). */
+export type MirrorPeer = {
+  host: string
+  nodeFqdn?: string
+  healthy?: boolean
+  probes?: Array<{ ok: boolean; latencyMs?: number }>
+  statusRepos?: Array<{
+    name: string
+    on_disk?: boolean
+    in_catalog?: boolean
+    ok?: boolean
+    description?: string
+    publish_branch?: string
+    publish_sha?: string
+  }>
+  repos?: string[]
+}
+
+export function peerIsReachable (peer: MirrorPeer): boolean {
+  const probes = peer.probes || []
+  if (probes.length === 0) return false
+  return probes.some((p) => p.ok)
+}
+
+export function peerLatencyMs (peer: MirrorPeer): number {
+  const ok = (peer.probes || []).filter((p) => p.ok && p.latencyMs != null)
+  if (ok.length === 0) return Number.POSITIVE_INFINITY
+  return Math.min(...ok.map((p) => p.latencyMs as number))
+}
+
+/** First reachable node in list order — catalog source of truth, then failover. */
+export function firstReachablePeer<T extends MirrorPeer> (peers: T[]): T | null {
+  for (const p of peers) {
+    if (peerIsReachable(p)) return p
+  }
+  return null
+}
+
+export function catalogRowsFromPeer (peer: MirrorPeer | null): NonNullable<MirrorPeer['statusRepos']> {
+  if (!peer?.statusRepos) return []
+  const catalog = peer.statusRepos.filter((r) => r.in_catalog !== false)
+  const extras = peer.statusRepos.filter((r) => r.in_catalog === false && r.on_disk)
+  const byName = new Map<string, (typeof catalog)[number]>()
+  for (const r of [...catalog, ...extras]) {
+    if (!byName.has(r.name)) byName.set(r.name, r)
+  }
+  return [...byName.values()]
+}
+
+function peerHasRepo (peer: MirrorPeer, repo: string): boolean {
+  if (peer.statusRepos?.some((r) => r.name === repo && r.on_disk !== false)) return true
+  return (peer.repos || []).includes(repo)
+}
+
+let mirrorRoundRobin = 0
+
+/**
+ * Pick `{repo}.{node}` among live peers the way parked sites do: prefer the
+ * lowest-latency healthy mirror, and rotate among mirrors in a close band so
+ * one node is not pinned.
+ */
+export function pickRepoMirror (
+  repo: string,
+  peers: MirrorPeer[],
+  roundRobin: () => number = () => ++mirrorRoundRobin,
+): string | null {
+  const name = repo.trim()
+  if (!name || peers.length === 0) return null
+
+  const withRepo = peers.filter((p) => peerIsReachable(p) && peerHasRepo(p, name))
+  const reachable = peers.filter(peerIsReachable)
+  const pool = withRepo.length > 0 ? withRepo : reachable.length > 0 ? reachable : peers
+  const ranked = pool
+    .map((p) => ({
+      peer: p,
+      latency: peerLatencyMs(p),
+      healthy: peerIsReachable(p),
+      origin: repoSiteOrigin(name, p.nodeFqdn || hostnameOf(p.host)),
+    }))
+    .sort((a, b) => {
+      if (a.healthy !== b.healthy) return a.healthy ? -1 : 1
+      return a.latency - b.latency
+    })
+  if (ranked.length === 0) return null
+
+  const best = ranked[0]
+  const band = ranked.filter((c) => {
+    if (c.healthy !== best.healthy) return false
+    if (!Number.isFinite(best.latency)) return true
+    return c.latency <= best.latency * 1.25 || c.latency - best.latency <= 80
+  })
+  const pick = band[Math.abs(roundRobin()) % band.length]
+  return pick.origin
+}
+
 export type ClassifiedUrl =
   | { kind: 'node'; origin: string }
   | { kind: 'site'; origin: string }

@@ -16,6 +16,7 @@ export interface PeerRepoRow {
     on_disk: boolean
     in_catalog: boolean
     ok: boolean
+    description?: string
     publish_branch?: string
     publish_sha?: string
 }
@@ -32,6 +33,7 @@ export interface PeerInfo {
     repoCount?: number
     nodeFqdn?: string
     healthy?: boolean
+    reposOk?: boolean
     isProbing?: boolean
 }
 
@@ -54,7 +56,7 @@ export interface TabInfo {
     unsupportedReason?: string
 }
 
-export type ThemeName = 'default' | 'light' | 'dark'
+export type ThemeName = 'system' | 'light' | 'dark'
 
 export interface AppState {
     // Peers state
@@ -76,7 +78,7 @@ export interface AppState {
     updateTab: (tabId: string, updater: (t: TabInfo) => TabInfo) => void
     homeTabId: string
 
-    // Theme state — shell (chrome) vs repo/hook surface inside RepoBrowser ShadowRoot
+    // Theme state — client chrome only. Rendered sites live in an iframe and keep their own theme.
     shellTheme: ThemeName
     hookTheme: ThemeName
     setShellTheme: (theme: ThemeName) => void
@@ -85,6 +87,10 @@ export interface AppState {
     theme: ThemeName
     /** @deprecated use setShellTheme */
     setTheme: (theme: ThemeName) => void
+
+    /** Chrome-less site view (URL `?view=`). Not persisted. */
+    siteView: boolean
+    setSiteView: (hidden: boolean) => void
 
     // Auto-refresh state
     autoRefreshEnabled: boolean
@@ -123,7 +129,12 @@ export const STORAGE_KEY_THEME_SHELL = 'relay_theme_shell'
 export const STORAGE_KEY_THEME_HOOK = 'relay_theme_hook'
 
 function isValidThemeName (stored: string | null): stored is ThemeName {
-    return stored === 'default' || stored === 'light' || stored === 'dark'
+    return stored === 'system' || stored === 'light' || stored === 'dark' || stored === 'default'
+}
+
+function storedToThemeName (stored: string | null): ThemeName {
+    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+    return 'system'
 }
 
 let legacyThemeMigrationRan = false
@@ -229,12 +240,12 @@ function loadPersistedShellTheme (): ThemeName {
     try {
         const stored = localStorage.getItem(STORAGE_KEY_THEME_SHELL)
         if (isValidThemeName(stored)) {
-            return stored
+            return storedToThemeName(stored)
         }
     } catch (e) {
         console.error('Failed to load persisted shell theme:', e)
     }
-    return 'default'
+    return 'system'
 }
 
 function loadPersistedHookTheme (): ThemeName {
@@ -242,12 +253,12 @@ function loadPersistedHookTheme (): ThemeName {
     try {
         const stored = localStorage.getItem(STORAGE_KEY_THEME_HOOK)
         if (isValidThemeName(stored)) {
-            return stored
+            return storedToThemeName(stored)
         }
     } catch (e) {
         console.error('Failed to load persisted hook theme:', e)
     }
-    return 'default'
+    return 'system'
 }
 
 function persistShellTheme (theme: ThemeName) {
@@ -431,6 +442,9 @@ export const useAppState = create<AppState>((set, get) => ({
     setTheme: (theme) => {
         get().setShellTheme(theme)
     },
+
+    siteView: false,
+    setSiteView: (siteView) => set({ siteView }),
 
     // Auto-refresh state
     autoRefreshEnabled: false,

@@ -8,7 +8,11 @@ import {
   isLegacyPeerList,
   migrateStoredPeerHosts,
   originOf,
+  pickRepoMirror,
   repoSiteOrigin,
+  firstReachablePeer,
+  catalogRowsFromPeer,
+  peerIsReachable,
 } from '../constants/liveFleet.ts'
 import { isNodeStatusPayload } from '../services/nodeStatus.ts'
 import { detectClientHook, unsupportedMessage } from '../services/hookDetect.ts'
@@ -64,6 +68,60 @@ test('repoSiteOrigin builds {repo}.{node}', () => {
   )
 })
 
+test('pickRepoMirror prefers healthy low-latency and rotates in-band', () => {
+  const peers = [
+    {
+      host: 'https://lon1.relaygateway.net',
+      nodeFqdn: 'lon1.relaygateway.net',
+      healthy: true,
+      probes: [{ ok: true, latencyMs: 220 }],
+      statusRepos: [{ name: 'files', on_disk: true }],
+    },
+    {
+      host: 'https://dfw1.relaygateway.net',
+      nodeFqdn: 'dfw1.relaygateway.net',
+      healthy: true,
+      probes: [{ ok: true, latencyMs: 40 }],
+      statusRepos: [{ name: 'files', on_disk: true }],
+    },
+    {
+      host: 'https://hkg1.relaygateway.net',
+      nodeFqdn: 'hkg1.relaygateway.net',
+      healthy: false,
+      probes: [{ ok: false }],
+      statusRepos: [{ name: 'files', on_disk: true }],
+    },
+  ]
+  const a = pickRepoMirror('files', peers, () => 0)
+  const b = pickRepoMirror('files', peers, () => 1)
+  assert.equal(a, 'https://files.dfw1.relaygateway.net')
+  // lon1 is outside the 80ms/25% band of 40ms, so rotation stays on dfw1
+  assert.equal(b, 'https://files.dfw1.relaygateway.net')
+})
+
+test('pickRepoMirror rotates among close healthy mirrors', () => {
+  const peers = [
+    {
+      host: 'https://dfw1.relaygateway.net',
+      nodeFqdn: 'dfw1.relaygateway.net',
+      healthy: true,
+      probes: [{ ok: true, latencyMs: 50 }],
+      statusRepos: [{ name: 'files', on_disk: true }],
+    },
+    {
+      host: 'https://lon1.relaygateway.net',
+      nodeFqdn: 'lon1.relaygateway.net',
+      healthy: true,
+      probes: [{ ok: true, latencyMs: 55 }],
+      statusRepos: [{ name: 'files', on_disk: true }],
+    },
+  ]
+  const first = pickRepoMirror('files', peers, () => 0)
+  const second = pickRepoMirror('files', peers, () => 1)
+  assert.equal(first, 'https://files.dfw1.relaygateway.net')
+  assert.equal(second, 'https://files.lon1.relaygateway.net')
+})
+
 test('originOf adds https', () => {
   assert.equal(originOf('lon1.relaygateway.net'), 'https://lon1.relaygateway.net')
 })
@@ -115,4 +173,39 @@ test('detectClientHook 200 vs 404 vs cors', async () => {
 test('unsupportedMessage is explicit', () => {
   assert.match(unsupportedMessage('not_found'), /Not supported/)
   assert.match(unsupportedMessage('cors'), /Not supported/)
+})
+
+test('firstReachablePeer fails over in list order', () => {
+  const peers = [
+    { host: 'https://dfw1.relaygateway.net', probes: [{ ok: false }] },
+    { host: 'https://lon1.relaygateway.net', probes: [{ ok: true, latencyMs: 80 }] },
+    { host: 'https://hkg1.relaygateway.net', probes: [{ ok: true, latencyMs: 20 }] },
+  ]
+  const p = firstReachablePeer(peers)
+  assert.equal(p?.host, 'https://lon1.relaygateway.net')
+})
+
+test('catalogRowsFromPeer keeps catalog-only names ahead of extras', () => {
+  const rows = catalogRowsFromPeer({
+    host: 'https://dfw1.relaygateway.net',
+    probes: [{ ok: true }],
+    statusRepos: [
+      { name: 'listed', in_catalog: true, on_disk: false, description: 'From catalog' },
+      { name: 'live', in_catalog: true, on_disk: true, publish_sha: 'abc' },
+      { name: 'extra', in_catalog: false, on_disk: true },
+    ],
+  })
+  assert.deepEqual(rows.map((r) => r.name), ['listed', 'live', 'extra'])
+  assert.equal(rows[0].description, 'From catalog')
+})
+
+test('peerIsReachable is this-client RTT, not mesh healthy', () => {
+  assert.equal(
+    peerIsReachable({ host: 'x', healthy: false, probes: [{ ok: true, latencyMs: 40 }] }),
+    true,
+  )
+  assert.equal(
+    peerIsReachable({ host: 'x', healthy: true, probes: [{ ok: false }] }),
+    false,
+  )
 })
