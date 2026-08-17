@@ -174,7 +174,12 @@ export function PeersView({onOpenRepo, onOpenSite, onUnsupported}: PeersViewProp
             <TSDiv className="p-4 border-b">
                 <TSDiv className="flex items-center gap-3 mb-4">
                     <img src="/icon.png" alt="Relay" width={24} height={24} className="flex-shrink-0" />
-                    <TSDiv tag="h2" className="m-0 text-xl font-semibold">Relay</TSDiv>
+                    <TSDiv tag="h1" className="m-0 text-xl font-semibold">Relay</TSDiv>
+                </TSDiv>
+                <TSDiv tag="p" className="m-0 mb-4 text-sm leading-relaxed">
+                    Relay is a decentralized Web3.0 stack and social network architecture.
+                    Browse git-backed repositories, CleverScript hooks, and peer gateways from this client,
+                    or clone the open-source mesh from GitLab under the clevertree group.
                 </TSDiv>
 
                 <TSDiv tag="form" onSubmit={handleAddPeer} className="flex gap-2">
