@@ -1,9 +1,9 @@
 /**
  * Validates relay-client-web against real relay masters (default: dfw1).
- * Requires network access from the machine running Playwright.
  *
  * Env:
- *   E2E_RELAY_HOST   — substring to match a peer card (default: dfw1.relaygateway.net)
+ *   E2E_RELAY_HOST   — substring to match a node card (default: dfw1.relaygateway.net)
+ *   E2E_RELAY_REPO   — repo name to open (default: paradigm-threat-files)
  *   PW_NO_SERVER=1   — do not spawn `npm run dev`; use existing server at PLAYWRIGHT_BASE_URL
  *
  * Run: npm run test:e2e
@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test'
 
 const RELAY_SUBSTR = process.env.E2E_RELAY_HOST ?? 'dfw1.relaygateway.net'
+const RELAY_REPO = process.env.E2E_RELAY_REPO ?? 'paradigm-threat-files'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -32,40 +33,48 @@ test.describe('Relay client — remote masters', () => {
     await resetAppStorage(page)
   })
 
-  test('home: Relay shell and configured peer row', async ({ page }) => {
+  test('home: Relay shell, live node, and repo list', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Relay' })).toBeVisible()
-    await expect(page.getByText(RELAY_SUBSTR, { exact: false }).first()).toBeVisible({
-      timeout: 15_000,
+    const nodeCard = page.getByTestId('node-card').filter({ hasText: RELAY_SUBSTR }).first()
+    await expect(nodeCard).toBeVisible({ timeout: 15_000 })
+    await expect(nodeCard.getByText(RELAY_REPO, { exact: false }).first()).toBeVisible({
+      timeout: 100_000,
     })
   })
 
-  test('remote peer: probe reaches Online, open tab, hook shell + host visible', async ({ page }) => {
-    const peerCard = page.locator('div.cursor-pointer').filter({ hasText: RELAY_SUBSTR }).first()
-    await expect(peerCard).toBeVisible({ timeout: 15_000 })
+  test('open repo tab (not node apex), hook shell visible', async ({ page }) => {
+    const nodeCard = page.getByTestId('node-card').filter({ hasText: RELAY_SUBSTR }).first()
+    await expect(nodeCard).toBeVisible({ timeout: 15_000 })
 
-    await expect(peerCard.getByText(/Online|Offline/).first()).toBeVisible({ timeout: 100_000 })
+    await expect(nodeCard.getByText(/Online|Degraded|Offline/).first()).toBeVisible({ timeout: 100_000 })
 
-    if (await peerCard.getByText(/^Offline$/).first().isVisible().catch(() => false)) {
+    if (await nodeCard.getByText(/^Offline$/).first().isVisible().catch(() => false)) {
       test.skip(
         true,
-        `Peer matching "${RELAY_SUBSTR}" is Offline — check network or set E2E_RELAY_HOST`
+        `Node matching "${RELAY_SUBSTR}" is Offline — check network or set E2E_RELAY_HOST`,
       )
     }
 
-    await expect(peerCard.getByText(/Online/).first()).toBeVisible()
-
-    await peerCard.getByRole('button', { name: /Open →/ }).click()
+    const openBtn = nodeCard.locator(`[data-testid="open-repo"][data-repo="${RELAY_REPO}"]`).first()
+    const fallbackOpen = nodeCard.getByTestId('open-repo').first()
+    const btn = (await openBtn.count()) > 0 ? openBtn : fallbackOpen
+    await btn.click()
 
     await expect(page.getByTestId('relay-hook-shell')).toBeVisible({ timeout: 60_000 })
     await expect(page.getByText('Hook shell (stub)')).toHaveCount(0)
     await expect(page.getByTestId('relay-hook-shell').locator('.relay-hook-mount')).toBeVisible()
 
-    await expect(page.getByText(RELAY_SUBSTR, { exact: false }).first()).toBeVisible()
-
-    /** Path / repo tab title usually mirrors the host */
-    await expect(page.locator('main').getByText(RELAY_SUBSTR, { exact: false })).toBeVisible({
+    await expect(page.locator('span[title]').filter({ hasText: RELAY_REPO }).first()).toBeVisible({
       timeout: 30_000,
     })
+    await expect(page.locator('span[title]').filter({ hasText: new RegExp(`^https://${RELAY_SUBSTR}/?$`) })).toHaveCount(0)
+  })
+
+  test('unsupported pasted URL shows Not supported', async ({ page }) => {
+    await page.getByPlaceholder(/client hook/i).fill('https://example.com')
+    await page.getByRole('button', { name: 'Add' }).click()
+    await expect(page.getByRole('heading', { name: 'Not supported' })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByTestId('relay-hook-shell')).toHaveCount(0)
   })
 })
 

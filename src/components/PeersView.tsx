@@ -1,15 +1,25 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent} from 'react'
 import {type PeerInfo, STORAGE_KEY_PEERS, useAppState} from '../state/store'
 import {fullProbePeer} from '../services/probing'
+import {fetchNodeStatus} from '../services/nodeStatus'
+import {detectClientHookWithOptions, unsupportedMessage} from '../services/hookDetect'
+import {
+    classifyAddedUrl,
+    hostnameOf,
+    migrateStoredPeerHosts,
+    repoSiteOrigin,
+} from '../constants/liveFleet'
 import {TSDiv} from './TSDiv'
 
-const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
 interface PeersViewProps {
-    onPeerPress?: (host: string) => void
+    onOpenRepo?: (siteOrigin: string, repo: string) => void
+    onOpenSite?: (origin: string) => void
+    onUnsupported?: (url: string, reason: string) => void
 }
 
-export function PeersView({onPeerPress}: PeersViewProps) {
+export function PeersView({onOpenRepo, onOpenSite, onUnsupported}: PeersViewProps) {
     const peers = useAppState((s) => s.peers)
     const setPeers = useAppState((s) => s.setPeers)
     const updatePeer = useAppState((s) => s.updatePeer)
@@ -18,9 +28,9 @@ export function PeersView({onPeerPress}: PeersViewProps) {
     const addPeer = useAppState((s) => s.addPeer)
     const removePeer = useAppState((s) => s.removePeer)
     const [newPeerInput, setNewPeerInput] = useState('')
+    const [addBusy, setAddBusy] = useState(false)
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-    // Probe a single peer
     const probePeer = useCallback(
         async (host: string) => {
             setPeerProbing(host, true)
@@ -30,8 +40,12 @@ export function PeersView({onPeerPress}: PeersViewProps) {
                     ...p,
                     probes: result.probes,
                     lastUpdateTs: result.lastUpdateTs,
-                    branches: result.branches,
                     repos: result.repos,
+                    statusRepos: result.statusRepos,
+                    gatewayVersion: result.gatewayVersion,
+                    repoCount: result.repoCount,
+                    nodeFqdn: result.nodeFqdn,
+                    healthy: result.healthy,
                     isProbing: false,
                 }))
             } catch {
@@ -44,24 +58,16 @@ export function PeersView({onPeerPress}: PeersViewProps) {
         [setPeerProbing, updatePeer],
     )
 
-    // Probe all peers
     const probeAllPeers = useCallback(async () => {
         const currentPeers = useAppState.getState().peers
         await Promise.all(currentPeers.map((p) => probePeer(p.host)))
         setLastRefreshTs(Date.now())
     }, [probePeer, setLastRefreshTs])
 
-    // Load peers from environment (simulate fetching from tracker)
     const loadAndProbePeers = useCallback(async () => {
-        console.log('[loadAndProbePeers] Starting...')
         try {
-            // Parse peers from environment variable or URL params
-            const envPeers = await getPeersFromEnvironment()
-            console.log('[loadAndProbePeers] Got peers:', envPeers)
-            console.log('[loadAndProbePeers] Calling setPeers with:', envPeers)
+            const envPeers = getPeersFromEnvironment()
             setPeers(envPeers)
-            console.log('[loadAndProbePeers] setPeers called, current state:', useAppState.getState().peers)
-            // Probe all peers after setting them
             await Promise.all(envPeers.map((host: string) => probePeer(host)))
             setLastRefreshTs(Date.now())
         } catch (e) {
@@ -69,7 +75,6 @@ export function PeersView({onPeerPress}: PeersViewProps) {
         }
     }, [setPeers, probePeer, setLastRefreshTs])
 
-    // Setup auto-refresh interval (always enabled, 5 minutes)
     useEffect(() => {
         intervalRef.current = setInterval(() => {
             probeAllPeers()
@@ -82,60 +87,84 @@ export function PeersView({onPeerPress}: PeersViewProps) {
         }
     }, [probeAllPeers])
 
-    // Initial load
     useEffect(() => {
-        console.log('[PeersView] Initial load useEffect triggered')
         loadAndProbePeers().catch((e) => console.error('[PeersView] Load error:', e))
-        // Run only once on mount
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    // Get status and probe info
     const renderProbeStatus = (peer: PeerInfo) => {
-        if (!peer.probes || peer.probes.length === 0) {
-            return <TSDiv
-                tag="span"
-                className="text-xs px-2 py-1 rounded whitespace-nowrap">Not probed</TSDiv>
+        if (peer.isProbing) {
+            return <TSDiv tag="span" className="text-xs px-2 py-1 rounded whitespace-nowrap">Probing…</TSDiv>
         }
-
+        if (!peer.probes || peer.probes.length === 0) {
+            return <TSDiv tag="span" className="text-xs px-2 py-1 rounded whitespace-nowrap">Not probed</TSDiv>
+        }
         const okProbes = peer.probes.filter((p) => p.ok)
         if (okProbes.length === 0) {
             return <TSDiv
                 tag="span"
                 className="text-xs px-2 py-1 rounded whitespace-nowrap bg-red-100/50 text-red-600 font-semibold">Offline</TSDiv>
         }
-
         const latency = okProbes[0].latencyMs
+        const label = peer.healthy === false ? 'Degraded' : 'Online'
+        const cls = peer.healthy === false
+            ? 'bg-amber-100/70 text-amber-800'
+            : 'bg-green-100/50 text-green-700'
         return (
             <TSDiv tag="span"
-                   className="text-xs px-2 py-1 rounded whitespace-nowrap bg-green-100/50 text-green-700 font-semibold">
-                Online {latency ? `(${latency.toFixed(0)}ms)` : ''}
+                   className={`text-xs px-2 py-1 rounded whitespace-nowrap font-semibold ${cls}`}>
+                {label} {latency != null ? `(${latency.toFixed(0)}ms)` : ''}
             </TSDiv>
         )
     }
 
-    const handlePeerPress = (host: string) => {
-        onPeerPress?.(host)
+    const handleOpenRepo = (peer: PeerInfo, repoName: string) => {
+        const nodeFqdn = peer.nodeFqdn || hostnameOf(peer.host)
+        const site = repoSiteOrigin(repoName, nodeFqdn)
+        onOpenRepo?.(site, repoName)
     }
 
-    const handleAddPeer = (e: React.FormEvent) => {
+    const handleAddPeer = async (e: FormEvent) => {
         e.preventDefault()
         const trimmedInput = newPeerInput.trim()
-        if (trimmedInput) {
-            // Validate URL format
+        if (!trimmedInput || addBusy) return
+        setAddBusy(true)
+        try {
+            let parsed: URL
             try {
-                new URL(trimmedInput)
-                addPeer(trimmedInput)
-                setNewPeerInput('')
-                // Probe the new peer immediately
-                probePeer(trimmedInput)
+                parsed = new URL(trimmedInput.includes('://') ? trimmedInput : `https://${trimmedInput}`)
             } catch {
-                alert('Please enter a valid URL (e.g., http://localhost:3000 or https://example.com)')
+                alert('Please enter a valid URL (e.g. https://dfw1.relaygateway.net or https://example.com)')
+                return
             }
+            const known = useAppState.getState().peers.map((p) => p.host)
+            const classified = classifyAddedUrl(parsed.href, known)
+            if (classified.kind === 'node') {
+                addPeer(classified.origin)
+                setNewPeerInput('')
+                await probePeer(classified.origin)
+                return
+            }
+            const asNode = await fetchNodeStatus(classified.origin)
+            if (asNode.ok) {
+                addPeer(classified.origin)
+                setNewPeerInput('')
+                await probePeer(classified.origin)
+                return
+            }
+            const hook = await detectClientHookWithOptions(classified.origin)
+            setNewPeerInput('')
+            if (hook.ok) {
+                onOpenSite?.(classified.origin)
+            } else {
+                onUnsupported?.(classified.origin, unsupportedMessage(hook.reason))
+            }
+        } finally {
+            setAddBusy(false)
         }
     }
 
-    const handleRemovePeer = (e: React.MouseEvent, host: string) => {
+    const handleRemovePeer = (e: MouseEvent, host: string) => {
         e.stopPropagation()
         removePeer(host)
     }
@@ -148,11 +177,10 @@ export function PeersView({onPeerPress}: PeersViewProps) {
                     <TSDiv tag="h2" className="m-0 text-xl font-semibold">Relay</TSDiv>
                 </TSDiv>
 
-                {/* Add peer input form */}
                 <TSDiv tag="form" onSubmit={handleAddPeer} className="flex gap-2">
                     <input
                         type="text"
-                        placeholder="https://example.com"
+                        placeholder="https://dfw1.relaygateway.net or any site with a client hook"
                         value={newPeerInput}
                         onChange={(e) => setNewPeerInput(e.target.value)}
                         className="flex-1 px-3 py-2 border rounded text-sm focus:outline-none focus:border-blue-500"
@@ -160,9 +188,9 @@ export function PeersView({onPeerPress}: PeersViewProps) {
                     <TSDiv
                         tag="button"
                         type="submit"
-                        className="px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 transition-colors"
+                        className="px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 transition-colors disabled:opacity-60"
                     >
-                        Add
+                        {addBusy ? '…' : 'Add'}
                     </TSDiv>
                 </TSDiv>
             </TSDiv>
@@ -170,20 +198,19 @@ export function PeersView({onPeerPress}: PeersViewProps) {
             <TSDiv className="flex-1 overflow-y-auto flex flex-col gap-1 p-2">
                 {peers.length === 0 ? (
                     <TSDiv className="flex items-center justify-center h-full p-8 text-center">
-                        <TSDiv tag="p" className="m-0">No peers configured. Add one using the form above or set
-                            RELAY_PUBLIC_MASTER_PEER_LIST
-                            environment variable.</TSDiv>
+                        <TSDiv tag="p" className="m-0">No nodes configured. Add a relay node URL or set
+                            RELAY_PUBLIC_MASTER_PEER_LIST.</TSDiv>
                     </TSDiv>
                 ) : (
                     peers.map((peer) => (
                         <TSDiv
                             key={peer.host}
-                            className="p-4 bg-white border rounded-lg cursor-pointer transition-all hover:bg-gray-50 hover:border-blue-500 hover:shadow-lg group"
-                            onClick={() => handlePeerPress(peer.host)}
+                            data-testid="node-card"
+                            className="p-4 bg-white border rounded-lg transition-all"
                         >
                             <TSDiv className="flex justify-between items-center gap-4 mb-2">
-                                <TSDiv className="flex items-center gap-2 flex-1">
-                                    <TSDiv tag="span" className="font-semibold text-base">{peer.host}</TSDiv>
+                                <TSDiv className="flex items-center gap-2 flex-1 min-w-0">
+                                    <TSDiv tag="span" className="font-semibold text-base truncate">{peer.host}</TSDiv>
                                     {peer.isProbing &&
                                         <TSDiv tag="span" className="inline-block text-sm animation-spin">⟳</TSDiv>}
                                 </TSDiv>
@@ -193,51 +220,60 @@ export function PeersView({onPeerPress}: PeersViewProps) {
                                         tag="button"
                                         onClick={(e) => handleRemovePeer(e, peer.host)}
                                         className="px-2 py-1 bg-red-500 text-white rounded text-xs font-medium hover:bg-red-600 transition-all"
-                                        title="Remove peer"
+                                        title="Remove node"
                                     >
                                         ✕
                                     </TSDiv>
                                 </TSDiv>
                             </TSDiv>
 
-                            {peer.reposWithBranches && peer.reposWithBranches.length > 0 && (
+                            {(peer.gatewayVersion || peer.repoCount != null) && (
+                                <TSDiv className="text-xs text-gray-600 mb-2 flex flex-wrap gap-x-3 gap-y-1">
+                                    {peer.gatewayVersion && <TSDiv tag="span">gateway {peer.gatewayVersion}</TSDiv>}
+                                    {peer.repoCount != null && <TSDiv tag="span">{peer.repoCount} repos</TSDiv>}
+                                    {peer.nodeFqdn && <TSDiv tag="span">{peer.nodeFqdn}</TSDiv>}
+                                </TSDiv>
+                            )}
+
+                            {peer.statusRepos && peer.statusRepos.length > 0 ? (
                                 <TSDiv className="text-sm space-y-2 mt-2">
-                                    <TSDiv className="font-semibold">Repositories:</TSDiv>
-                                    <TSDiv className="space-y-2 pl-2">
-                                        {peer.reposWithBranches.map((repo) => (
-                                            <TSDiv key={repo.name} className="space-y-1">
-                                                <TSDiv
-                                                    className="font-mono text-xs font-semibold bg-blue-50 text-blue-700 px-2 py-1 rounded w-fit">
-                                                    {repo.name}
-                                                </TSDiv>
-                                                <TSDiv className="space-y-1 pl-2">
-                                                    {Object.entries(repo.branches).map(([branch, commit]) => (
-                                                        <TSDiv key={branch} className="flex items-center gap-2 text-xs">
-                                                            <TSDiv tag="span"
-                                                                   className="font-semibold">{branch}:</TSDiv>
-                                                            <TSDiv tag="code"
-                                                                   className="bg-gray-100 px-1.5 py-0.5 rounded font-mono">
-                                                                {commit.substring(0, 7)}
-                                                            </TSDiv>
+                                    <TSDiv className="font-semibold">Repositories</TSDiv>
+                                    <TSDiv className="space-y-2">
+                                        {peer.statusRepos.map((repo) => (
+                                            <TSDiv
+                                                key={repo.name}
+                                                className="flex items-center gap-2 justify-between border rounded px-2 py-1.5"
+                                            >
+                                                <TSDiv className="min-w-0">
+                                                    <TSDiv
+                                                        className="font-mono text-xs font-semibold bg-blue-50 text-blue-700 px-2 py-1 rounded w-fit">
+                                                        {repo.name}
+                                                    </TSDiv>
+                                                    {repo.publish_sha && (
+                                                        <TSDiv className="text-xs text-gray-500 mt-1">
+                                                            {repo.publish_branch || 'main'}{' '}
+                                                            <TSDiv tag="code">{repo.publish_sha.substring(0, 7)}</TSDiv>
                                                         </TSDiv>
-                                                    ))}
+                                                    )}
+                                                </TSDiv>
+                                                <TSDiv
+                                                    tag="button"
+                                                    data-testid="open-repo"
+                                                    data-repo={repo.name}
+                                                    className="shrink-0 px-3 py-1.5 bg-blue-500 text-white border-none rounded cursor-pointer text-sm font-medium hover:bg-blue-600 transition-colors"
+                                                    onClick={() => handleOpenRepo(peer, repo.name)}
+                                                >
+                                                    Open →
                                                 </TSDiv>
                                             </TSDiv>
                                         ))}
                                     </TSDiv>
                                 </TSDiv>
+                            ) : (
+                                !peer.isProbing && (
+                                    <TSDiv className="text-xs text-gray-500 mt-2">No repos listed (node offline or empty).</TSDiv>
+                                )
                             )}
-
-                            <TSDiv
-                                tag="button"
-                                className="w-full px-2 py-2 mt-2 bg-blue-500 text-white border-none rounded cursor-pointer text-sm font-medium hover:bg-blue-600 transition-colors"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    handlePeerPress(peer.host)
-                                }}
-                            >
-                                Open →
-                            </TSDiv>
                         </TSDiv>
                     ))
                 )}
@@ -246,45 +282,20 @@ export function PeersView({onPeerPress}: PeersViewProps) {
     )
 }
 
-/**
- * Get peers from environment or URL params
- */
-async function getPeersFromEnvironment(): Promise<string[]> {
-    console.log('[getPeersFromEnvironment] Starting peer resolution...')
-
-    // Check localStorage first (user-customized peer list)
+export function getPeersFromEnvironment(): string[] {
+    let stored: string[] | null = null
     try {
-        const stored = localStorage.getItem(STORAGE_KEY_PEERS)
-        if (stored) {
-            const peers = JSON.parse(stored) as string[]
-            if (Array.isArray(peers) && peers.length > 0) {
-                // Keep peers as-is with their full URLs
-                const cleanPeers = peers.map(p => p.trim()).filter(p => p.length > 0)
-                console.log('[getPeersFromEnvironment] Loaded from localStorage (overrides env):', cleanPeers)
-                return cleanPeers
-            }
+        const raw = localStorage.getItem(STORAGE_KEY_PEERS)
+        if (raw) {
+            const peers = JSON.parse(raw) as string[]
+            if (Array.isArray(peers)) stored = peers.map((p) => p.trim()).filter((p) => p.length > 0)
         }
-    } catch (e) {
-        console.log('[getPeersFromEnvironment] Failed to load from localStorage:', e)
+    } catch {
+        stored = null
     }
 
-    // Check environment variables (only available after full rebuild with .env)
-    const envPeers = import.meta?.env?.RELAY_PUBLIC_MASTER_PEER_LIST || 'https://atlanta2.relaygateway.net'
-    console.log('[getPeersFromEnvironment] RELAY_PUBLIC_MASTER_PEER_LIST:', envPeers)
-    if (envPeers) {
-        const peers = envPeers.split(';').map((p: string) => p.trim()).filter((p: string) => p.length > 0)
-        console.log('[getPeersFromEnvironment] Loaded from build-time env:', peers)
-        return peers
-    }
-
-    // Try to get from global config (would be set by server)
+    const envPeers = import.meta?.env?.RELAY_PUBLIC_MASTER_PEER_LIST as string | undefined
     const win = window as Window & { RELAY_PUBLIC_MASTER_PEER_LIST?: string }
-    if (win.RELAY_PUBLIC_MASTER_PEER_LIST) {
-        console.log('[getPeersFromEnvironment] Loaded from window.RELAY_PUBLIC_MASTER_PEER_LIST:', win.RELAY_PUBLIC_MASTER_PEER_LIST)
-        return win.RELAY_PUBLIC_MASTER_PEER_LIST.split(',').map((p: string) => p.trim())
-    }
-
-    // Fallback: try localhost
-    console.log('[getPeersFromEnvironment] Fallback to localhost:8080')
-    return ['localhost:8080']
+    const envOrWindow = envPeers || win.RELAY_PUBLIC_MASTER_PEER_LIST
+    return migrateStoredPeerHosts(stored, envOrWindow)
 }

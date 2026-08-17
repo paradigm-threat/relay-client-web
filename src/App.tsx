@@ -32,16 +32,24 @@ function App () {
 
   const activeTabId = useAppState((s) => s.activeTabId)
   const openTab = useAppState((s) => s.openTab)
+  const openUnsupportedTab = useAppState((s) => s.openUnsupportedTab)
   const shellTheme = useAppState((s) => s.shellTheme)
   const [initialized, setInitialized] = useState(false)
 
-  // Initialize state on mount (restores from localStorage)
   if (!initialized) {
     setInitialized(true)
   }
 
-  const handlePeerPress = (host: string) => {
-    openTab(host, '/')
+  const handleOpenRepo = (siteOrigin: string, repo: string) => {
+    openTab(siteOrigin, '/', { repo, title: repo })
+  }
+
+  const handleOpenSite = (origin: string) => {
+    openTab(origin, '/', { title: origin })
+  }
+
+  const handleUnsupported = (url: string, reason: string) => {
+    openUnsupportedTab(url, reason)
   }
 
   return (
@@ -52,7 +60,11 @@ function App () {
         <TSDiv className="flex flex-1 overflow-hidden">
           <TSDiv tag='main' className="flex-1 flex flex-col overflow-hidden">
             {activeTabId === 'home' ? (
-              <PeersView onPeerPress={handlePeerPress} />
+              <PeersView
+                onOpenRepo={handleOpenRepo}
+                onOpenSite={handleOpenSite}
+                onUnsupported={handleUnsupported}
+              />
             ) : activeTabId === 'settings' ? (
               <SettingsTab />
             ) : activeTabId === 'test' ? (
@@ -63,8 +75,7 @@ function App () {
               <TSDiv className="flex items-center justify-center h-full w-full">
                 <TSDiv className="text-center">
                   <TSDiv tag='h2' className="mb-2 text-2xl font-semibold">No repositories open</TSDiv>
-                  <TSDiv tag='p' className="text-base">Select a peer from the home tab to browse its
-                    repositories.</TSDiv>
+                  <TSDiv tag='p' className="text-base">Select a repository from the home tab.</TSDiv>
                 </TSDiv>
               </TSDiv>
             )}

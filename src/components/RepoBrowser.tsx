@@ -9,6 +9,7 @@ import {
   repoRelativeHookPathToUrlPath,
   staticRelayOptionsFallback,
 } from '../constants/relayClientDefaults'
+import { detectClientHook, unsupportedMessage } from '../services/hookDetect'
 
 interface RepoBrowserProps {
     tabId: string
@@ -165,6 +166,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
     const [showUpdateModal, setShowUpdateModal] = useState(false)
     /** Bumps to re-run OPTIONS/content load without a full page reload */
     const [refreshEpoch, setRefreshEpoch] = useState(0)
+    const [hookUnsupported, setHookUnsupported] = useState<string | null>(null)
     // Client is now dumb: search and navigation UI are moved into repo layout
     // Keep minimal state only for hook/file rendering
 
@@ -223,21 +225,29 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             setLoading(false)
             setError(null)
             setHookDiag(null)
+            setHookUnsupported(null)
+            return
+        }
+
+        if (tab.unsupported) {
+            setLoading(false)
+            setError(null)
+            setHookDiag(null)
+            setHookUnsupported(tab.unsupportedReason || unsupportedMessage('not_found'))
             return
         }
 
         if (!tab.host) {
             setLoading(false)
-            setError('This tab has no relay host; close it and open a peer from Home.')
+            setError('This tab has no relay host; close it and open a repo from Home.')
             return
         }
 
         (async () => {
             try {
                 const opts = await loadOptions()
-                await loadContent(opts)
-                // Extract server version from OPTIONS response
                 if (opts) {
+                    await loadContent(opts)
                     await fetchServerVersion(opts)
                 }
             } catch (e) {
@@ -246,10 +256,11 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         })()
         // loadOptions/loadContent close over `tab`; effect is keyed by tab identity fields.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tab?.host, tab?.path, tab?.directHookUrl, tab?.id, refreshEpoch])
+    }, [tab?.host, tab?.path, tab?.directHookUrl, tab?.id, tab?.unsupported, refreshEpoch])
 
     const loadOptions = async (): Promise<OptionsInfo | null> => {
         if (!tab || !tab.host) return null
+        setHookUnsupported(null)
 
         const finishWithStaticFallback = (
             diag: Record<string, unknown>,
@@ -274,54 +285,53 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         const baseUrl = normalizeHostUrl(tab.host)
         const diagnostics: Record<string, unknown> = { phase: 'options', url: `${baseUrl}/` }
 
-        if (typeof window !== 'undefined' && window.location?.origin) {
-            try {
-                const hookOrigin = new URL(`${baseUrl}/`).origin
-                if (hookOrigin !== window.location.origin) {
-                    diagnostics.skipped = 'cross-origin-options'
-                    return finishWithStaticFallback(
-                        diagnostics,
-                        'Skipping OPTIONS for cross-origin hook host (avoids CORS preflight); using default hook path',
-                    )
-                }
-            } catch {
-                /* proceed with OPTIONS */
-            }
-        }
-
-        let resp: Response
+        let resp: Response | null = null
         try {
-            resp = await fetch(`${baseUrl}/`, { method: 'OPTIONS' })
+            resp = await fetch(`${baseUrl}/`, { method: 'OPTIONS', headers: { Accept: 'application/json' } })
         } catch (fetchErr) {
             diagnostics.optionsFetchError =
                 fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
-            return finishWithStaticFallback(
-                diagnostics,
-                'OPTIONS fetch failed; using default hook path',
-            )
+            resp = null
         }
 
-        diagnostics.options = {
-            status: resp.status,
-            ok: resp.ok,
-            headers: {
-                'content-type': resp.headers.get('content-type'),
-                'content-length': resp.headers.get('content-length'),
-            },
+        if (resp) {
+            diagnostics.options = {
+                status: resp.status,
+                ok: resp.ok,
+                headers: {
+                    'content-type': resp.headers.get('content-type'),
+                    'content-length': resp.headers.get('content-length'),
+                },
+            }
         }
 
         let options: OptionsInfo | null = null
         let parsedFrom: 'OPTIONS' | null = null
 
-        try {
-            const text = await resp.text()
-            diagnostics.optionsBodyLength = text?.length || 0
-            if (text && text.trim().length > 0) {
-                options = JSON.parse(text) as OptionsInfo
-                parsedFrom = 'OPTIONS'
+        if (resp) {
+            try {
+                const text = await resp.text()
+                diagnostics.optionsBodyLength = text?.length || 0
+                if (text && text.trim().length > 0) {
+                    options = JSON.parse(text) as OptionsInfo
+                    parsedFrom = 'OPTIONS'
+                }
+            } catch (parseErr) {
+                diagnostics.optionsParseError = parseErr instanceof Error ? parseErr.message : String(parseErr)
             }
-        } catch (parseErr) {
-            diagnostics.optionsParseError = parseErr instanceof Error ? parseErr.message : String(parseErr)
+        }
+
+        const hookPath =
+            options?.client?.hooks?.get?.path
+            || 'hooks/client/get.jsx'
+        const hook = await detectClientHook(baseUrl, hookPath)
+        if (!hook.ok) {
+            const msg = unsupportedMessage(hook.reason)
+            setHookUnsupported(msg)
+            setError(null)
+            setHookDiag({ phase: 'hook-detect', reason: hook.reason, ...diagnostics })
+            setLoading(false)
+            return null
         }
 
         const hasValidRepos =
@@ -344,11 +354,11 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         }
 
         diagnostics.fallbackHint =
-            diagnostics.optionsFetchError ??
-            (!resp.ok ? `OPTIONS status ${resp.status}` : 'empty or invalid OPTIONS body / no repos')
+            diagnostics.optionsFetchError
+            ?? (resp && !resp.ok ? `OPTIONS status ${resp.status}` : 'empty or invalid OPTIONS body / no repos')
         return finishWithStaticFallback(
             diagnostics,
-            'OPTIONS unavailable or empty; using default hook path',
+            'OPTIONS unavailable or empty; hook file present — using default GET hook path',
         )
     }
 
@@ -359,8 +369,10 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         setError(null)
 
         try {
-            // If we don't have options, abort with a clearer error and diagnostics
             const raw = opts ?? optionsInfo
+            if (hookUnsupported) {
+                return
+            }
             if (!raw || !Array.isArray(raw.repos) || raw.repos.length === 0) {
                 setError('Repository discovery did not return usable repo metadata. See details for diagnostics.')
                 setHookDiag({ phase: 'render', reason: 'no-options', optionsInfo: raw })
@@ -470,6 +482,16 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
 
                         {loading &&
                             <TSDiv className="flex items-center justify-center h-full">Loading...</TSDiv>}
+
+                        {hookUnsupported && (
+                            <TSDiv className="flex flex-col items-center justify-center h-full p-8 text-center max-w-lg mx-auto">
+                                <TSDiv tag="h2" className="text-xl font-semibold mb-2">Not supported</TSDiv>
+                                <TSDiv tag="p" className="text-sm text-[var(--text-secondary)]">{hookUnsupported}</TSDiv>
+                                {tab.host && (
+                                    <TSDiv tag="p" className="mt-3 text-xs font-mono break-all opacity-70">{tab.host}</TSDiv>
+                                )}
+                            </TSDiv>
+                        )}
 
                         {error && (
                             <TSDiv
@@ -679,7 +701,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                             </TSDiv>
                         )}
 
-                        {!loading && (
+                        {!loading && !hookUnsupported && (
                             tab?.directHookUrl ? (
                                 (() => {
                                     const { host, hookPath } = splitHookUrl(tab.directHookUrl!)
@@ -693,7 +715,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                     </TSDiv>
 
                 {/* Footer with version and git pull button */}
-                {!embedMode && (
+                {!embedMode && !hookUnsupported && (
                 <TSDiv
                     className="border-t bg-[var(--bg-secondary)] px-4 py-3 flex items-center justify-between">
                     <TSDiv className="text-sm text-[var(--text-secondary)]">

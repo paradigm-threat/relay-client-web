@@ -31,8 +31,9 @@ Then open **`http://127.0.0.1:5173`** with **`npm run dev`**, or run browser tes
 ### Playwright (remote relay + WASM smoke)
 
 - **`npx playwright install chromium`** once (browser binaries).
-- **`npm run test:e2e`** — starts **`npm run dev`**, runs **`e2e/relay-remote.spec.ts`**: home peer list, optional **remote relay open-tab** flow when a master is **Online**, and **Test** tab **`markdown_to_ast_json`** visibility.
-- **`E2E_RELAY_HOST`** — substring for which peer row to use (default: `dfw1.relaygateway.net`).
+- **`npm run test:e2e`** — starts **`npm run dev`**, runs **`e2e/relay-remote.spec.ts`**: home node + repo list, optional **open repo tab** when a master is reachable, **unsupported URL**, and **Test** tab **`markdown_to_ast_json`** visibility.
+- **`E2E_RELAY_HOST`** — substring for which node card to use (default: `dfw1.relaygateway.net`).
+- **`E2E_RELAY_REPO`** — repository to Open (default: `paradigm-threat-files`).
 - **`PW_NO_SERVER=1`** — use an already-running dev server; set **`PLAYWRIGHT_BASE_URL`** if not `http://127.0.0.1:5173`.
 - **`npm run test:e2e:preset`** — fullscreen **preset remote hook** (`playwright-preset.config.ts` injects **`RELAY_PUBLIC_PRESET_REMOTE_HOOK`**, default **`http://127.0.0.1:3011`**). Set **`E2E_PRESET_HOOK_BASE`** or start a static files server on that port; skips if the hook URL is not reachable.
 - **Chrome DevTools MCP (optional):** with preset env, open `/` and confirm a **GET** to `{base}/hooks/client/get.jsx`; check console for hard errors.

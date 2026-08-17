@@ -11,13 +11,27 @@ export interface PeerProbe {
     error?: string
 }
 
+export interface PeerRepoRow {
+    name: string
+    on_disk: boolean
+    in_catalog: boolean
+    ok: boolean
+    publish_branch?: string
+    publish_sha?: string
+}
+
 export interface PeerInfo {
     host: string
-    lastUpdateTs?: number // epoch millis from OPTIONS response
+    lastUpdateTs?: number
     probes: PeerProbe[]
     branches?: string[]
     repos?: string[]
     reposWithBranches?: Array<{ name: string; branches: Record<string, string> }>
+    statusRepos?: PeerRepoRow[]
+    gatewayVersion?: string
+    repoCount?: number
+    nodeFqdn?: string
+    healthy?: boolean
     isProbing?: boolean
 }
 
@@ -35,6 +49,9 @@ export interface TabInfo {
     directHookUrl?: string
     /** When set (embed shell), use this URL path for the client GET hook instead of OPTIONS-derived path */
     embedClientHookUrlPath?: string
+    /** Pasted URL / origin with no client GET hook — do not scrape HTML. */
+    unsupported?: boolean
+    unsupportedReason?: string
 }
 
 export type ThemeName = 'default' | 'light' | 'dark'
@@ -51,7 +68,8 @@ export interface AppState {
     // Tabs state
     tabs: TabInfo[]
     activeTabId: string | null
-    openTab: (host: string, path?: string) => string // Returns tab ID
+    openTab: (host: string, path?: string, opts?: { repo?: string; title?: string }) => string
+    openUnsupportedTab: (sourceUrl: string, reason: string) => string
     openDirectHookTab: (hookUrl: string, title?: string) => string
     closeTab: (tabId: string) => void // Won't close home tab
     setActiveTab: (tabId: string) => void
@@ -295,8 +313,11 @@ export const useAppState = create<AppState>((set, get) => ({
     tabs: loadPersistedTabs(),
     activeTabId: loadPersistedActiveTab(),
     homeTabId: 'home',
-    openTab: (host, path = '/') => {
-        const existingTab = get().tabs.find((t) => t.host === host && t.path === path)
+    openTab: (host, path = '/', opts) => {
+        const repo = opts?.repo
+        const existingTab = get().tabs.find(
+            (t) => t.host === host && t.path === path && t.repo === repo && !t.unsupported,
+        )
         if (existingTab) {
             set({ activeTabId: existingTab.id })
             persistTabs(get().tabs, existingTab.id)
@@ -308,7 +329,33 @@ export const useAppState = create<AppState>((set, get) => ({
             id,
             host,
             path,
-            title: host,
+            repo,
+            title: opts?.title || repo || host,
+        }
+        set((s) => {
+            const newTabs = [...s.tabs, newTab]
+            persistTabs(newTabs, id)
+            return {
+                tabs: newTabs,
+                activeTabId: id,
+            }
+        })
+        return id
+    },
+    openUnsupportedTab: (sourceUrl, reason) => {
+        const existing = get().tabs.find((t) => t.unsupported && t.host === sourceUrl)
+        if (existing) {
+            set({ activeTabId: existing.id })
+            persistTabs(get().tabs, existing.id)
+            return existing.id
+        }
+        const id = generateTabId()
+        const newTab: TabInfo = {
+            id,
+            host: sourceUrl,
+            title: 'Not supported',
+            unsupported: true,
+            unsupportedReason: reason,
         }
         set((s) => {
             const newTabs = [...s.tabs, newTab]

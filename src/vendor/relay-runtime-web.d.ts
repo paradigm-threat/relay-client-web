@@ -93,5 +93,5 @@ export function setCurrentTheme(name: string): void;
 
 /** Mark embed client live after hydrate/CSR (CleverScript isClientLive).
  * Host also sets html[data-pt-hydrated]="1" via syncHtmlHydratedAttr. */
-export function setClientLive?(live: boolean): void;
+export function setClientLive(live: boolean): void;
 
