@@ -21,7 +21,7 @@ test('defaultMasterOrigins is the live fleet', () => {
   const o = defaultMasterOrigins()
   assert.deepEqual(o, [
     'https://dfw1.relaygateway.net',
-    'https://lon1.relaygateway.net',
+    'https://iad1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
 })
@@ -40,6 +40,19 @@ test('empty stored list is replaced', () => {
 test('user-added live node is kept', () => {
   const stored = ['https://dfw1.relaygateway.net', 'https://relay.example.com']
   assert.deepEqual(migrateStoredPeerHosts(stored), stored)
+})
+
+test('stored lon1 is rewritten to iad1', () => {
+  const next = migrateStoredPeerHosts([
+    'https://dfw1.relaygateway.net',
+    'https://lon1.relaygateway.net',
+    'https://hkg1.relaygateway.net',
+  ])
+  assert.deepEqual(next, [
+    'https://dfw1.relaygateway.net',
+    'https://iad1.relaygateway.net',
+    'https://hkg1.relaygateway.net',
+  ])
 })
 
 test('env list with atlanta2 falls back to live defaults', () => {
@@ -71,8 +84,8 @@ test('repoSiteOrigin builds {repo}.{node}', () => {
 test('pickRepoMirror prefers healthy low-latency and rotates in-band', () => {
   const peers = [
     {
-      host: 'https://lon1.relaygateway.net',
-      nodeFqdn: 'lon1.relaygateway.net',
+      host: 'https://iad1.relaygateway.net',
+      nodeFqdn: 'iad1.relaygateway.net',
       healthy: true,
       probes: [{ ok: true, latencyMs: 220 }],
       statusRepos: [{ name: 'files', on_disk: true }],
@@ -95,7 +108,7 @@ test('pickRepoMirror prefers healthy low-latency and rotates in-band', () => {
   const a = pickRepoMirror('files', peers, () => 0)
   const b = pickRepoMirror('files', peers, () => 1)
   assert.equal(a, 'https://files.dfw1.relaygateway.net')
-  // lon1 is outside the 80ms/25% band of 40ms, so rotation stays on dfw1
+  // iad1 is outside the 80ms/25% band of 40ms, so rotation stays on dfw1
   assert.equal(b, 'https://files.dfw1.relaygateway.net')
 })
 
@@ -109,8 +122,8 @@ test('pickRepoMirror rotates among close healthy mirrors', () => {
       statusRepos: [{ name: 'files', on_disk: true }],
     },
     {
-      host: 'https://lon1.relaygateway.net',
-      nodeFqdn: 'lon1.relaygateway.net',
+      host: 'https://iad1.relaygateway.net',
+      nodeFqdn: 'iad1.relaygateway.net',
       healthy: true,
       probes: [{ ok: true, latencyMs: 55 }],
       statusRepos: [{ name: 'files', on_disk: true }],
@@ -119,11 +132,11 @@ test('pickRepoMirror rotates among close healthy mirrors', () => {
   const first = pickRepoMirror('files', peers, () => 0)
   const second = pickRepoMirror('files', peers, () => 1)
   assert.equal(first, 'https://files.dfw1.relaygateway.net')
-  assert.equal(second, 'https://files.lon1.relaygateway.net')
+  assert.equal(second, 'https://files.iad1.relaygateway.net')
 })
 
 test('originOf adds https', () => {
-  assert.equal(originOf('lon1.relaygateway.net'), 'https://lon1.relaygateway.net')
+  assert.equal(originOf('iad1.relaygateway.net'), 'https://iad1.relaygateway.net')
 })
 
 test('isNodeStatusPayload requires schema, healthy, repos', () => {
@@ -178,11 +191,11 @@ test('unsupportedMessage is explicit', () => {
 test('firstReachablePeer fails over in list order', () => {
   const peers = [
     { host: 'https://dfw1.relaygateway.net', probes: [{ ok: false }] },
-    { host: 'https://lon1.relaygateway.net', probes: [{ ok: true, latencyMs: 80 }] },
+    { host: 'https://iad1.relaygateway.net', probes: [{ ok: true, latencyMs: 80 }] },
     { host: 'https://hkg1.relaygateway.net', probes: [{ ok: true, latencyMs: 20 }] },
   ]
   const p = firstReachablePeer(peers)
-  assert.equal(p?.host, 'https://lon1.relaygateway.net')
+  assert.equal(p?.host, 'https://iad1.relaygateway.net')
 })
 
 test('catalogRowsFromPeer keeps catalog-only names ahead of extras', () => {

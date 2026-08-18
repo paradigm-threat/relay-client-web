@@ -144,14 +144,14 @@ export interface InitOutput {
     readonly themed_styler_free_string: (a: number) => void;
     readonly themed_styler_render_css: (a: number) => number;
     readonly themed_styler_version: () => number;
-    readonly wasm_bindgen__convert__closures_____invoke__h663377c3681e591f: (a: number, b: number) => void;
+    readonly wasm_bindgen__closure__destroy__h70836fd6b4c627df: (a: number, b: number) => void;
+    readonly wasm_bindgen__convert__closures_____invoke__h50d33f36c27ea276: (a: number, b: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
-    readonly __wbindgen_destroy_closure: (a: number, b: number) => void;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_start: () => void;
 }

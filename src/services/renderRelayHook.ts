@@ -40,6 +40,8 @@ export type MountRelayHookOpts = {
   host: string
   hookPath?: string
   hydrate?: boolean
+  /** auto | csr | hydrate — default auto */
+  mode?: 'auto' | 'csr' | 'hydrate'
   branch?: string
   initialPath?: string
   themeYaml?: string
@@ -55,10 +57,14 @@ export async function mountRelayHookIntoElement (
   const raw = opts.hookPath ?? 'hooks/client/get.jsx'
   const hookPath = raw.startsWith('/') ? raw.slice(1) : raw
   const hydrate = opts.hydrate === true || el.dataset?.relaySsr === '1'
+  const mode =
+    opts.mode ??
+    (opts.hydrate === false ? 'csr' : opts.hydrate === true ? 'hydrate' : 'auto')
   await renderHook(el, {
     host: opts.host,
     hookPath,
     hydrate,
+    mode,
     branch: opts.branch,
     initialPath: opts.initialPath,
     themeYaml: opts.themeYaml,

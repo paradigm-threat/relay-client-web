@@ -4,11 +4,32 @@
  */
 export const LIVE_MASTER_ORIGINS = [
   'https://dfw1.relaygateway.net',
-  'https://lon1.relaygateway.net',
+  'https://iad1.relaygateway.net',
   'https://hkg1.relaygateway.net',
 ] as const
 
 const LEGACY_PEER_HOST_MARKERS = ['atlanta2', 'atlanta3', 'jp-osa']
+
+/** Recycled / decommissioned node FQDNs rewritten to the current fleet. */
+const RETIRED_NODE_REWRITES: Array<[RegExp, string]> = [
+  [/lon1\.relaygateway\.net/gi, 'iad1.relaygateway.net'],
+]
+
+function rewriteRetiredNodeHosts (hosts: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of hosts) {
+    let next = raw
+    for (const [re, to] of RETIRED_NODE_REWRITES) {
+      next = next.replace(re, to)
+    }
+    const key = hostnameOf(next)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(next)
+  }
+  return out
+}
 
 export function hostnameOf (originOrUrl: string): string {
   try {
@@ -68,7 +89,7 @@ export function migrateStoredPeerHosts (
   if (!stored || !Array.isArray(stored) || isLegacyPeerList(stored)) {
     return defaults
   }
-  return stored.map((s) => s.trim()).filter((s) => s.length > 0)
+  return rewriteRetiredNodeHosts(stored.map((s) => s.trim()).filter((s) => s.length > 0))
 }
 
 export function isKnownNodeApex (hostname: string, extraNodeHosts: string[] = []): boolean {

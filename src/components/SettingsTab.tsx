@@ -36,11 +36,6 @@ interface Themes {
     currentTheme?: string
 }
 
-interface ThemeListItem {
-    key: string
-    name: string
-}
-
 interface DebugPanelState {
     css: string
     usage: UsageSnapshot | { error: string } | null
@@ -72,22 +67,9 @@ function collectDomClassNames (): string[] {
 export function SettingsTab() {
     const [setting, setSetting] = useTranspilerSetting<'wasm' | 'server-only'>('transpiler', 'wasm')
     const shellTheme = useAppState((s) => s.shellTheme)
-    const hookTheme = useAppState((s) => s.hookTheme)
     const setShellTheme = useAppState((s) => s.setShellTheme)
-    const setHookTheme = useAppState((s) => s.setHookTheme)
     const openDirectHookTab = useAppState((s) => s.openDirectHookTab)
-    const [themeList, setThemeList] = useState<ThemeListItem[]>([])
     const testHookUrl = 'https://clevertree.github.io/relay-template/hooks/client/get.jsx'
-
-    // Load theme list on mount
-    useEffect(() => {
-        try {
-            const list = unifiedBridge.getThemeList()
-            setThemeList(list)
-        } catch (e) {
-            console.error('Failed to get theme list:', e)
-        }
-    }, [])
 
     // Compute description based on two modes only
     const selectedDescription = useMemo(() => {
@@ -275,66 +257,26 @@ export function SettingsTab() {
                 <TSDiv className="flex items-center justify-between">
                     <TSDiv>
                         <TSDiv tag="h2" className="text-lg font-semibold">Theme</TSDiv>
-                        <TSDiv tag="p" className="text-sm">Appearance for app chrome vs repository / hook panels.</TSDiv>
+                        <TSDiv tag="p" className="text-sm text-[var(--text-secondary)]">Client chrome only. Sites in an iframe keep their own light/dark.</TSDiv>
                     </TSDiv>
                 </TSDiv>
 
-                <TSDiv className="flex flex-col gap-4 mt-3">
-                    <TSDiv className="flex items-center justify-between rounded-lg border p-4">
-                        <TSDiv>
-                            <TSDiv tag="p" className="text-base font-medium">App chrome</TSDiv>
-                            <TSDiv tag="p" className="text-sm mt-1 text-[var(--text-secondary)]">Home, tabs, Settings</TSDiv>
+                <TSDiv className="flex flex-wrap gap-2 mt-3">
+                    {(['system', 'light', 'dark'] as ThemeName[]).map((key) => (
+                        <TSDiv
+                            key={key}
+                            tag="button"
+                            type="button"
+                            onClick={() => setShellTheme(key)}
+                            className={`px-4 py-2 rounded text-sm font-medium border ${
+                                shellTheme === key
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-[var(--bg-surface)] text-[var(--text)] border-[var(--border)]'
+                            }`}
+                        >
+                            {key === 'system' ? 'System' : key === 'light' ? 'Light' : 'Dark'}
                         </TSDiv>
-                        <TSDiv tag="label" className="inline-flex items-center cursor-pointer select-none">
-                            <select
-                                value={shellTheme}
-                                onChange={(e) => setShellTheme(e.target.value as ThemeName)}
-                                className="px-3 py-2 border rounded-md bg-surface text-text cursor-pointer"
-                            >
-                                {themeList.length > 0 ? (
-                                    themeList.map((t) => (
-                                        <option key={`shell-${t.key}`} value={t.key}>
-                                            {t.name}
-                                        </option>
-                                    ))
-                                ) : (
-                                    <>
-                                        <option value="default">Default</option>
-                                        <option value="light">Light</option>
-                                        <option value="dark">Dark</option>
-                                    </>
-                                )}
-                            </select>
-                        </TSDiv>
-                    </TSDiv>
-
-                    <TSDiv className="flex items-center justify-between rounded-lg border p-4">
-                        <TSDiv>
-                            <TSDiv tag="p" className="text-base font-medium">Repositories & hooks</TSDiv>
-                            <TSDiv tag="p" className="text-sm mt-1 text-[var(--text-secondary)]">Repo browser (shadow DOM surface)</TSDiv>
-                        </TSDiv>
-                        <TSDiv tag="label" className="inline-flex items-center cursor-pointer select-none">
-                            <select
-                                value={hookTheme}
-                                onChange={(e) => setHookTheme(e.target.value as ThemeName)}
-                                className="px-3 py-2 border rounded-md bg-surface text-text cursor-pointer"
-                            >
-                                {themeList.length > 0 ? (
-                                    themeList.map((t) => (
-                                        <option key={`hook-${t.key}`} value={t.key}>
-                                            {t.name}
-                                        </option>
-                                    ))
-                                ) : (
-                                    <>
-                                        <option value="default">Default</option>
-                                        <option value="light">Light</option>
-                                        <option value="dark">Dark</option>
-                                    </>
-                                )}
-                            </select>
-                        </TSDiv>
-                    </TSDiv>
+                    ))}
                 </TSDiv>
             </TSDiv>
 

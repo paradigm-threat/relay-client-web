@@ -46,7 +46,7 @@ test.describe('Relay client — remote masters', () => {
     const nodeCard = page.getByTestId('node-card').filter({ hasText: RELAY_SUBSTR }).first()
     await expect(nodeCard).toBeVisible({ timeout: 15_000 })
 
-    await expect(nodeCard.getByText(/Online|Degraded|Offline/).first()).toBeVisible({ timeout: 100_000 })
+    await expect(nodeCard.getByText(/Online|Incomplete|Offline/).first()).toBeVisible({ timeout: 100_000 })
 
     if (await nodeCard.getByText(/^Offline$/).first().isVisible().catch(() => false)) {
       test.skip(
@@ -61,13 +61,30 @@ test.describe('Relay client — remote masters', () => {
     await btn.click()
 
     await expect(page.getByTestId('relay-hook-shell')).toBeVisible({ timeout: 60_000 })
+    const hookFrame = page.frameLocator('[data-testid="relay-hook-shell"] iframe')
+    await expect(hookFrame.locator('.relay-boot-shell, .pt-shell').first()).toBeVisible({
+      timeout: 120_000,
+    })
+    await expect(hookFrame.locator('.pt-shell').first()).toBeVisible({ timeout: 120_000 })
+    await expect(page.getByText('Hook error', { exact: false })).toHaveCount(0)
+    await expect(page.getByText(/Module not found/)).toHaveCount(0)
+    await expect(hookFrame.getByText(/Module not found/)).toHaveCount(0)
     await expect(page.getByText('Hook shell (stub)')).toHaveCount(0)
-    await expect(page.getByTestId('relay-hook-shell').locator('.relay-hook-mount')).toBeVisible()
 
     await expect(page.locator('span[title]').filter({ hasText: RELAY_REPO }).first()).toBeVisible({
       timeout: 30_000,
     })
     await expect(page.locator('span[title]').filter({ hasText: new RegExp(`^https://${RELAY_SUBSTR}/?$`) })).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`[?&]repo=${RELAY_REPO}`))
+
+    await page.getByTestId('tab-fullscreen').click()
+    await expect(page.getByTestId('shell-chrome')).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`[?&]view=${RELAY_REPO}`))
+    await expect(page.getByTestId('relay-hook-shell')).toBeVisible()
+
+    await page.goBack()
+    await expect(page.getByTestId('shell-chrome')).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`[?&]repo=${RELAY_REPO}`))
   })
 
   test('unsupported pasted URL shows Not supported', async ({ page }) => {

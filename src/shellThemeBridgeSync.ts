@@ -1,8 +1,13 @@
 /**
- * Keeps document-level themed-styler shell theme in sync with Zustand (preset/embed bundles skip App.tsx).
+ * Keep `html.light` / `html.dark` in sync with chrome preference (parked-site contract).
+ * Do not call setCurrentTheme for chrome — that would restyle isolated site documents.
  */
-import { unifiedBridge } from '@clevertree/themed-styler'
 import { useAppState } from './state/store'
+import {
+  applyChromeAppearance,
+  normalizeChromeThemePref,
+  subscribePrefersColorScheme,
+} from './theme/chromeAppearance'
 
 let installed = false
 
@@ -11,19 +16,18 @@ export function installShellThemeBridge (): void {
   installed = true
 
   const sync = (): void => {
-    try {
-      const shellTheme = useAppState.getState().shellTheme
-      if (unifiedBridge.setCurrentTheme) {
-        unifiedBridge.setCurrentTheme(shellTheme)
-      }
-    } catch {
-      /* noop */
-    }
+    const pref = normalizeChromeThemePref(useAppState.getState().shellTheme)
+    applyChromeAppearance(pref)
   }
 
   sync()
   useAppState.subscribe((state, previousState) => {
     if (state.shellTheme !== previousState.shellTheme) {
+      sync()
+    }
+  })
+  subscribePrefersColorScheme(() => {
+    if (normalizeChromeThemePref(useAppState.getState().shellTheme) === 'system') {
       sync()
     }
   })

@@ -1,16 +1,18 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useAppState } from '../state/store'
-import { ensureShadowStylesMirrored } from './repoBrowserShadowStyles'
 
 type RepoBrowserShadowRootProps = {
   children: ReactNode
+  /** When false, render as a normal element so the site can own document theme CSS. */
+  encapsulate?: boolean
 }
 
 /**
- * Default host for repo tabs: open shadow root + mirrored document styles so hook UI is encapsulated from shell chrome.
+ * In-app repo tabs: open shadow root so the site's injected CSS does not restyle shell chrome.
+ * Fullscreen site-view skips the shadow so theme.yaml / html.light behave like a parked page.
  */
-export function RepoBrowserShadowRoot ({ children }: RepoBrowserShadowRootProps) {
+export function RepoBrowserShadowRoot ({ children, encapsulate = true }: RepoBrowserShadowRootProps) {
   const [mountPoint, setMountPoint] = useState<Element | ShadowRoot | null>(null)
 
   const setHostRef = useCallback((el: HTMLDivElement | null) => {
@@ -18,21 +20,21 @@ export function RepoBrowserShadowRoot ({ children }: RepoBrowserShadowRootProps)
       setMountPoint(null)
       return
     }
-    const attach =
-      typeof el.attachShadow === 'function'
-        ? () => {
-          const sr = el.shadowRoot ?? el.attachShadow({ mode: 'open' })
-          ensureShadowStylesMirrored(sr)
-          return sr
-        }
-        : () => el
-
     try {
-      setMountPoint(attach())
+      const sr = el.shadowRoot ?? el.attachShadow({ mode: 'open' })
+      setMountPoint(sr)
     } catch {
       setMountPoint(el)
     }
   }, [])
+
+  if (!encapsulate) {
+    return (
+      <div className="relay-repo-browser-host flex flex-col flex-1 min-h-0 min-w-0 h-full w-full">
+        <RepoBrowserHookSurface>{children}</RepoBrowserHookSurface>
+      </div>
+    )
+  }
 
   return (
     <div

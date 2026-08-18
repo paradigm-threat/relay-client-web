@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useAppState } from './state/store'
 import { PeersView } from './components/PeersView'
 import { TabBar } from './components/TabBar'
@@ -10,6 +10,10 @@ import { createWebPlugin } from './plugins/web'
 import { TSDiv } from './components/TSDiv'
 import { SpaHistoryListener } from './components/SpaHistoryListener'
 import { applySiteNavigation } from './navigation/siteNavigation'
+import {
+  locationFromTab,
+  pushShellLocation,
+} from './navigation/shellHistory'
 
 const filesMirrorBase =
   typeof import.meta.env !== 'undefined' && import.meta.env.RELAY_PUBLIC_FILES_BASE
@@ -33,45 +37,61 @@ function App () {
   const activeTabId = useAppState((s) => s.activeTabId)
   const openTab = useAppState((s) => s.openTab)
   const openUnsupportedTab = useAppState((s) => s.openUnsupportedTab)
-  const shellTheme = useAppState((s) => s.shellTheme)
-  const [initialized, setInitialized] = useState(false)
-
-  if (!initialized) {
-    setInitialized(true)
-  }
+  const siteView = useAppState((s) => s.siteView)
 
   const handleOpenRepo = (siteOrigin: string, repo: string) => {
-    openTab(siteOrigin, '/', { repo, title: repo })
+    const id = openTab(siteOrigin, '/', { repo, title: repo })
+    const tab = useAppState.getState().tabs.find((t) => t.id === id)
+    if (tab) pushShellLocation(locationFromTab(tab))
   }
 
   const handleOpenSite = (origin: string) => {
-    openTab(origin, '/', { title: origin })
+    const id = openTab(origin, '/', { title: origin })
+    const tab = useAppState.getState().tabs.find((t) => t.id === id)
+    if (tab) pushShellLocation(locationFromTab(tab))
   }
 
   const handleUnsupported = (url: string, reason: string) => {
     openUnsupportedTab(url, reason)
   }
 
+  const activeIsRepo = Boolean(
+    activeTabId && activeTabId !== 'home' && activeTabId !== 'settings' && activeTabId !== 'test',
+  )
+
+  useEffect(() => {
+    if (siteView) {
+      document.documentElement.dataset.relaySiteView = '1'
+    } else {
+      delete document.documentElement.dataset.relaySiteView
+    }
+  }, [siteView])
+
   return (
     <PluginProvider plugin={webPlugin}>
       <SpaHistoryListener />
-      <TSDiv className="flex flex-col w-screen h-screen bg-primary theme" data-relay-theme-scope="shell" data-theme={shellTheme}>
-        <TabBar />
+      <TSDiv
+        className="flex flex-col w-screen h-screen"
+        style={{ background: 'var(--bg)', color: 'var(--text)' }}
+      >
+        {!siteView && (
+          <TSDiv data-testid="shell-chrome">
+            <TabBar />
+          </TSDiv>
+        )}
         <TSDiv className="flex flex-1 overflow-hidden">
           <TSDiv tag='main' className="flex-1 flex flex-col overflow-hidden">
-            {activeTabId === 'home' ? (
+            {!siteView && activeTabId === 'home' && (
               <PeersView
                 onOpenRepo={handleOpenRepo}
                 onOpenSite={handleOpenSite}
                 onUnsupported={handleUnsupported}
               />
-            ) : activeTabId === 'settings' ? (
-              <SettingsTab />
-            ) : activeTabId === 'test' ? (
-              <TestTab />
-            ) : activeTabId ? (
-              <RepoBrowser tabId={activeTabId} />
-            ) : (
+            )}
+            {!siteView && activeTabId === 'settings' && <SettingsTab />}
+            {!siteView && activeTabId === 'test' && <TestTab />}
+            {activeIsRepo && activeTabId ? <RepoBrowser tabId={activeTabId} /> : null}
+            {!siteView && !activeTabId && (
               <TSDiv className="flex items-center justify-center h-full w-full">
                 <TSDiv className="text-center">
                   <TSDiv tag='h2' className="mb-2 text-2xl font-semibold">No repositories open</TSDiv>

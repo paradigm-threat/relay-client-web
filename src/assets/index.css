@@ -2,6 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
+:root, html.light {
+  --bg: #ffffff;
+  --bg-surface: #f9fafb;
+  --bg-secondary: #f3f4f6;
+  --text: #111827;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --bg-error: #fef2f2;
+  --text-error: #b91c1c;
+  --border-error: #fecaca;
+  --bg-code: #f3f4f6;
+  --text-code: #1f2937;
+  --chip-bg: #eff6ff;
+  --chip-text: #1d4ed8;
+  --status-ok-bg: #dcfce7;
+  --status-ok-text: #15803d;
+  --status-bad-bg: #fee2e2;
+  --status-bad-text: #b91c1c;
+  --status-warn-bg: #fef3c7;
+  --status-warn-text: #92400e;
+  color-scheme: light;
+}
+
+html.dark {
+  --bg: #111827;
+  --bg-surface: #1f2937;
+  --bg-secondary: #0f172a;
+  --text: #f9fafb;
+  --text-secondary: #9ca3af;
+  --border: #374151;
+  --bg-error: #450a0a;
+  --text-error: #fecaca;
+  --border-error: #7f1d1d;
+  --bg-code: #0f172a;
+  --text-code: #e5e7eb;
+  --chip-bg: #1e3a5f;
+  --chip-text: #93c5fd;
+  --status-ok-bg: #14532d;
+  --status-ok-text: #86efac;
+  --status-bad-bg: #7f1d1d;
+  --status-bad-text: #fecaca;
+  --status-warn-bg: #78350f;
+  --status-warn-text: #fde68a;
+  color-scheme: dark;
+}
+
 :root {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
   line-height: 1.5;
@@ -18,6 +64,8 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
+  background: var(--bg);
+  color: var(--text);
 }
 
 body {
@@ -31,4 +79,16 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+input, select, textarea {
+  background: var(--bg-surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+input::placeholder {
+  color: var(--text-secondary);
 }

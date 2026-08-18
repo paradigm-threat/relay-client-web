@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAppState } from '../state/store'
 import { RepoFetchProvider } from '../context/RepoFetchContext'
 import HookRenderer from './ThemedHookRenderer'
-import { RepoBrowserShadowRoot } from './RepoBrowserShadowRoot'
 import { TSDiv } from './TSDiv'
 import {
   applyDefaultClientGetHook,
@@ -153,6 +152,7 @@ function splitHookUrl(hookUrl: string): { host: string; hookPath: string } {
 export function RepoBrowser({ tabId }: RepoBrowserProps) {
     const tab = useAppState((s) => s.tabs.find((t) => t.id === tabId))
     const embedMode = useAppState((s) => s.embedMode)
+    const siteView = useAppState((s) => s.siteView)
     const updateTab = useAppState((s) => s.updateTab)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -171,7 +171,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
     // Keep minimal state only for hook/file rendering
 
     // Get server version from OPTIONS response (already includes branch commit hash)
-    const fetchServerVersion = async (opts: OptionsInfo) => {
+    const _fetchServerVersion = async (opts: OptionsInfo) => {
         if (!opts?.repos?.[0]?.branches) return
         try {
             const currentBranch = tab?.currentBranch || 'main'
@@ -243,22 +243,15 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             return
         }
 
-        (async () => {
-            try {
-                const opts = await loadOptions()
-                if (opts) {
-                    await loadContent(opts)
-                    await fetchServerVersion(opts)
-                }
-            } catch (e) {
-                console.error('[RepoBrowser] init failed:', e)
-            }
-        })()
-        // loadOptions/loadContent close over `tab`; effect is keyed by tab identity fields.
+        // Parked / repo sites render in an iframe of the live origin (CSS + theme isolation).
+        setLoading(false)
+        setError(null)
+        setHookDiag(null)
+        setHookUnsupported(null)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tab?.host, tab?.path, tab?.directHookUrl, tab?.id, tab?.unsupported, refreshEpoch])
 
-    const loadOptions = async (): Promise<OptionsInfo | null> => {
+    const _loadOptions = async (): Promise<OptionsInfo | null> => {
         if (!tab || !tab.host) return null
         setHookUnsupported(null)
 
@@ -362,7 +355,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
         )
     }
 
-    const loadContent = async (opts?: OptionsInfo | null) => {
+    const _loadContent = async (opts?: OptionsInfo | null) => {
         if (!tab || !tab.host) return
 
         setLoading(true)
@@ -457,7 +450,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
       [providerResolve]
     )
 
-    const resolvedHookUrlPath = useMemo(() => {
+    const _resolvedHookUrlPath = useMemo(() => {
         if (tab?.embedClientHookUrlPath) {
             return tab.embedClientHookUrlPath
         }
@@ -476,8 +469,7 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
             fetch: providerFetch,
             fetchJson: providerFetchJson
         }}>
-            <RepoBrowserShadowRoot>
-            <TSDiv className="flex flex-col h-full min-h-0">
+            <TSDiv className="flex flex-col h-full min-h-0 w-full">
                 <TSDiv className="flex-1 min-h-0 overflow-hidden">
 
                         {loading &&
@@ -705,28 +697,28 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                             tab?.directHookUrl ? (
                                 (() => {
                                     const { host, hookPath } = splitHookUrl(tab.directHookUrl!)
-                                    return <HookRenderer host={host} hookPath={hookPath} />
+                                    return <HookRenderer host={host} hookPath={hookPath} mode="auto" />
                                 })()
                             ) : (
-                                tab?.host ? <HookRenderer host={tab.host} hookPath={resolvedHookUrlPath} /> : null
+                                tab?.host ? (
+                                    <HookRenderer
+                                        host={normalizeHostUrl(tab.host)}
+                                        hookPath={_resolvedHookUrlPath}
+                                        initialPath={tab.path && tab.path !== '/' ? tab.path : '/'}
+                                        mode="csr"
+                                    />
+                                ) : null
                             )
                         )}
                         {/* No placeholders: if the hook didn't render and there's no error, render nothing */}
                     </TSDiv>
 
                 {/* Footer with version and git pull button */}
-                {!embedMode && !hookUnsupported && (
+                {!embedMode && !siteView && !hookUnsupported && (
                 <TSDiv
                     className="border-t bg-[var(--bg-secondary)] px-4 py-3 flex items-center justify-between">
                     <TSDiv className="text-sm text-[var(--text-secondary)]">
-                        {serverHeadCommit ? (
-                            <TSDiv tag="span">
-                                Version: <TSDiv tag="code"
-                                    className="bg-[var(--bg-code)] px-2 py-1 rounded text-xs">{serverHeadCommit}</TSDiv>
-                            </TSDiv>
-                        ) : (
-                            <TSDiv tag="span">Version: loading...</TSDiv>
-                        )}
+                        <TSDiv tag="span">Live site</TSDiv>
                     </TSDiv>
                     <TSDiv
                         tag="button"
@@ -796,7 +788,6 @@ export function RepoBrowser({ tabId }: RepoBrowserProps) {
                     </TSDiv>
                 )}
             </TSDiv>
-            </RepoBrowserShadowRoot>
         </RepoFetchProvider>
     )
 }

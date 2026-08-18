@@ -1,18 +1,17 @@
 import { useEffect } from 'react'
-import { applyHistoryPathToActiveTab } from '../navigation/siteNavigation'
+import { applyShellLocationToStore } from '../navigation/siteNavigation'
+import { parseShellLocation } from '../navigation/shellHistory'
 
 /**
- * Keeps the active repo tab `path` in sync with browser history (back/forward and
- * legacy navigations that only touch the History API).
+ * Tab switches and site-view are History API entries. Back/forward restore chrome + tab.
  */
 export function SpaHistoryListener () {
   useEffect(() => {
     const syncFromHistory = () => {
-      const st = window.history.state as { relayContentPath?: string } | null
-      const path = st?.relayContentPath ?? window.location.pathname
-      if (path) applyHistoryPathToActiveTab(path)
+      applyShellLocationToStore(parseShellLocation())
     }
 
+    syncFromHistory()
     window.addEventListener('popstate', syncFromHistory)
     return () => window.removeEventListener('popstate', syncFromHistory)
   }, [])
