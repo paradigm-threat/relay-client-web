@@ -21,11 +21,11 @@ test('parse repo and view keep host and path', () => {
     assert.equal(repo.host, 'https://files.dfw1.relaygateway.net')
     assert.equal(repo.path, '/about')
   }
-  const view = parseShellLocation('?view=files&host=https://files.lon1.relaygateway.net')
+  const view = parseShellLocation('?view=files&host=https://files.iad1.relaygateway.net')
   assert.equal(view.kind, 'view')
   if (view.kind === 'view') {
     assert.equal(view.repo, 'files')
-    assert.equal(view.host, 'https://files.lon1.relaygateway.net')
+    assert.equal(view.host, 'https://files.iad1.relaygateway.net')
   }
 })
 

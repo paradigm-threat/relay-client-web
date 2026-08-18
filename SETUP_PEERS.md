@@ -6,9 +6,9 @@ The web client automatically exposes public environment variables prefixed with 
 
 Home lists **repositories** from live master nodes (not a server picker). Default nodes match the gateway installer:
 
-`dfw1.relaygateway.net`, `lon1.relaygateway.net`, `hkg1.relaygateway.net`.
+`dfw1.relaygateway.net`, `iad1.relaygateway.net`, `hkg1.relaygateway.net`.
 
-Stale `localStorage` entries that only contain legacy hosts (`atlanta2`, `atlanta3`, `jp-osa`) are replaced by that live list.
+Stale `localStorage` entries that only contain legacy hosts (`atlanta2`, `atlanta3`, `jp-osa`) are replaced by that live list. Retired `lon1` hosts are rewritten to `iad1`.
 
 ### Configuration
 
@@ -16,7 +16,7 @@ Set the master peer list in `.env`:
 
 ```dotenv
 # Semicolon-separated list of relay master nodes:
-RELAY_PUBLIC_MASTER_PEER_LIST="https://dfw1.relaygateway.net;https://lon1.relaygateway.net;https://hkg1.relaygateway.net"
+RELAY_PUBLIC_MASTER_PEER_LIST="https://dfw1.relaygateway.net;https://iad1.relaygateway.net;https://hkg1.relaygateway.net"
 ```
 
 ### Build-time Injection
@@ -28,7 +28,7 @@ When you build the project (`npm run build`), the esbuild configuration:
 
 ```typescript
 const peerList = import.meta.env.RELAY_PUBLIC_MASTER_PEER_LIST
-// => "https://dfw1.relaygateway.net;https://lon1.relaygateway.net;https://hkg1.relaygateway.net"
+// => "https://dfw1.relaygateway.net;https://iad1.relaygateway.net;https://hkg1.relaygateway.net"
 ```
 
 ### Build Process
