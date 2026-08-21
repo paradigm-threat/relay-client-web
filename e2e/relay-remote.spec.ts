@@ -1,8 +1,8 @@
 /**
- * Validates relay-client-web against real relay masters (default: dfw1).
+ * Validates relay-client-web against real relay masters (default: iad1).
  *
  * Env:
- *   E2E_RELAY_HOST   — substring to match a node card (default: dfw1.relaygateway.net)
+ *   E2E_RELAY_HOST   — substring to match a node card (default: iad1.relaygateway.net)
  *   E2E_RELAY_REPO   — repo name to open (default: paradigm-threat-files)
  *   PW_NO_SERVER=1   — do not spawn `npm run dev`; use existing server at PLAYWRIGHT_BASE_URL
  *
@@ -10,7 +10,7 @@
  */
 import { test, expect } from '@playwright/test'
 
-const RELAY_SUBSTR = process.env.E2E_RELAY_HOST ?? 'dfw1.relaygateway.net'
+const RELAY_SUBSTR = process.env.E2E_RELAY_HOST ?? 'iad1.relaygateway.net'
 const RELAY_REPO = process.env.E2E_RELAY_REPO ?? 'paradigm-threat-files'
 
 test.describe.configure({ mode: 'serial' })

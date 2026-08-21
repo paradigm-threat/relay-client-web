@@ -157,7 +157,7 @@ export function PeersView({onOpenRepo, onOpenSite, onUnsupported}: PeersViewProp
             try {
                 parsed = new URL(trimmedInput.includes('://') ? trimmedInput : `https://${trimmedInput}`)
             } catch {
-                alert('Please enter a valid URL (e.g. https://dfw1.relaygateway.net or https://example.com)')
+                alert('Please enter a valid URL (e.g. https://iad1.relaygateway.net or https://example.com)')
                 return
             }
             const known = useAppState.getState().peers.map((p) => p.host)
@@ -212,7 +212,7 @@ export function PeersView({onOpenRepo, onOpenSite, onUnsupported}: PeersViewProp
                 <TSDiv tag="form" onSubmit={handleAddPeer} className="flex gap-2">
                     <input
                         type="text"
-                        placeholder="https://dfw1.relaygateway.net or any site with a client hook"
+                        placeholder="https://iad1.relaygateway.net or any site with a client hook"
                         value={newPeerInput}
                         onChange={(e) => setNewPeerInput(e.target.value)}
                         className="flex-1 px-3 py-2 border rounded text-sm focus:outline-none focus:border-blue-500"

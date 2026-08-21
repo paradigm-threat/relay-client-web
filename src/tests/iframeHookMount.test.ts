@@ -9,16 +9,16 @@ import {
 
 test('parkedSiteBaseHref is origin with trailing slash', () => {
   assert.equal(
-    parkedSiteBaseHref('https://paradigm-threat-files.dfw1.relaygateway.net'),
-    'https://paradigm-threat-files.dfw1.relaygateway.net/',
+    parkedSiteBaseHref('https://paradigm-threat-files.iad1.relaygateway.net'),
+    'https://paradigm-threat-files.iad1.relaygateway.net/',
   )
   assert.equal(
-    parkedSiteBaseHref('https://paradigm-threat-files.dfw1.relaygateway.net/'),
-    'https://paradigm-threat-files.dfw1.relaygateway.net/',
+    parkedSiteBaseHref('https://paradigm-threat-files.iad1.relaygateway.net/'),
+    'https://paradigm-threat-files.iad1.relaygateway.net/',
   )
   assert.equal(
-    parkedSiteBaseHref('paradigm-threat-files.dfw1.relaygateway.net'),
-    'https://paradigm-threat-files.dfw1.relaygateway.net/',
+    parkedSiteBaseHref('paradigm-threat-files.iad1.relaygateway.net'),
+    'https://paradigm-threat-files.iad1.relaygateway.net/',
   )
 })
 
@@ -32,7 +32,7 @@ test('ensureIframeDocumentBase sets <base> so /site/header.png is parked-origin'
   const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>', {
     url: 'about:blank',
   })
-  const host = 'https://paradigm-threat-files.dfw1.relaygateway.net'
+  const host = 'https://paradigm-threat-files.iad1.relaygateway.net'
   const base = ensureIframeDocumentBase(dom.window.document, host)
   assert.ok(base)
   assert.equal(base?.getAttribute('href'), `${host}/`)

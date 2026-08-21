@@ -3,8 +3,8 @@
  * DEFAULT_RELAY_MASTER_PEER_LIST). Atlanta2 and other Linode names are legacy.
  */
 export const LIVE_MASTER_ORIGINS = [
-  'https://dfw1.relaygateway.net',
   'https://iad1.relaygateway.net',
+  'https://sjc1.relaygateway.net',
   'https://hkg1.relaygateway.net',
 ] as const
 
@@ -13,6 +13,7 @@ const LEGACY_PEER_HOST_MARKERS = ['atlanta2', 'atlanta3', 'jp-osa']
 /** Recycled / decommissioned node FQDNs rewritten to the current fleet. */
 const RETIRED_NODE_REWRITES: Array<[RegExp, string]> = [
   [/lon1\.relaygateway\.net/gi, 'iad1.relaygateway.net'],
+  [/dfw1\.relaygateway\.net/gi, 'sjc1.relaygateway.net'],
 ]
 
 function rewriteRetiredNodeHosts (hosts: string[]): string[] {

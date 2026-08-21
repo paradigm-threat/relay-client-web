@@ -14,11 +14,11 @@ test('parse home / settings / test', () => {
 })
 
 test('parse repo and view keep host and path', () => {
-  const repo = parseShellLocation('?repo=files&host=https://files.dfw1.relaygateway.net&p=/about')
+  const repo = parseShellLocation('?repo=files&host=https://files.sjc1.relaygateway.net&p=/about')
   assert.equal(repo.kind, 'repo')
   if (repo.kind === 'repo') {
     assert.equal(repo.repo, 'files')
-    assert.equal(repo.host, 'https://files.dfw1.relaygateway.net')
+    assert.equal(repo.host, 'https://files.sjc1.relaygateway.net')
     assert.equal(repo.path, '/about')
   }
   const view = parseShellLocation('?view=files&host=https://files.iad1.relaygateway.net')
@@ -33,8 +33,8 @@ test('href round-trips without inventing a pathname (keeps Vercel 404s)', () => 
   assert.equal(shellLocationHref({ kind: 'home' }), '/')
   assert.equal(shellLocationHref({ kind: 'settings' }), '/?t=settings')
   assert.equal(
-    shellLocationHref({ kind: 'repo', repo: 'files', host: 'https://files.dfw1.relaygateway.net' }),
-    '/?repo=files&host=https%3A%2F%2Ffiles.dfw1.relaygateway.net',
+    shellLocationHref({ kind: 'repo', repo: 'files', host: 'https://files.sjc1.relaygateway.net' }),
+    '/?repo=files&host=https%3A%2F%2Ffiles.sjc1.relaygateway.net',
   )
   assert.equal(shellLocationHref({ kind: 'view', repo: 'files' }), '/?view=files')
 })

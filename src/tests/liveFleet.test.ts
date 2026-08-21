@@ -20,15 +20,15 @@ import { detectClientHook, unsupportedMessage } from '../services/hookDetect.ts'
 test('defaultMasterOrigins is the live fleet', () => {
   const o = defaultMasterOrigins()
   assert.deepEqual(o, [
-    'https://dfw1.relaygateway.net',
     'https://iad1.relaygateway.net',
+    'https://sjc1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
 })
 
 test('legacy atlanta2 list is replaced', () => {
   const next = migrateStoredPeerHosts(['https://atlanta2.relaygateway.net'])
-  assert.ok(next.some((h) => h.includes('dfw1')))
+  assert.ok(next.some((h) => h.includes('iad1')))
   assert.ok(!next.some((h) => h.includes('atlanta2')))
 })
 
@@ -38,18 +38,31 @@ test('empty stored list is replaced', () => {
 })
 
 test('user-added live node is kept', () => {
-  const stored = ['https://dfw1.relaygateway.net', 'https://relay.example.com']
+  const stored = ['https://iad1.relaygateway.net', 'https://relay.example.com']
   assert.deepEqual(migrateStoredPeerHosts(stored), stored)
 })
 
 test('stored lon1 is rewritten to iad1', () => {
   const next = migrateStoredPeerHosts([
-    'https://dfw1.relaygateway.net',
+    'https://sjc1.relaygateway.net',
     'https://lon1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
   assert.deepEqual(next, [
+    'https://sjc1.relaygateway.net',
+    'https://iad1.relaygateway.net',
+    'https://hkg1.relaygateway.net',
+  ])
+})
+
+test('stored dfw1 is rewritten to sjc1', () => {
+  const next = migrateStoredPeerHosts([
     'https://dfw1.relaygateway.net',
+    'https://iad1.relaygateway.net',
+    'https://hkg1.relaygateway.net',
+  ])
+  assert.deepEqual(next, [
+    'https://sjc1.relaygateway.net',
     'https://iad1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
@@ -57,27 +70,27 @@ test('stored lon1 is rewritten to iad1', () => {
 
 test('env list with atlanta2 falls back to live defaults', () => {
   const o = defaultMasterOrigins('https://atlanta2.relaygateway.net')
-  assert.ok(o.some((h) => h.includes('dfw1')))
+  assert.ok(o.some((h) => h.includes('iad1')))
 })
 
 test('classify node apex vs repo subdomain vs parked site', () => {
-  assert.equal(classifyAddedUrl('https://dfw1.relaygateway.net').kind, 'node')
-  assert.equal(classifyAddedUrl('dfw1.relaygateway.net').kind, 'node')
-  const repo = classifyAddedUrl('https://paradigm-threat-files.dfw1.relaygateway.net/')
+  assert.equal(classifyAddedUrl('https://iad1.relaygateway.net').kind, 'node')
+  assert.equal(classifyAddedUrl('iad1.relaygateway.net').kind, 'node')
+  const repo = classifyAddedUrl('https://paradigm-threat-files.iad1.relaygateway.net/')
   assert.equal(repo.kind, 'site')
-  assert.equal(hostnameOf(repo.origin), 'paradigm-threat-files.dfw1.relaygateway.net')
+  assert.equal(hostnameOf(repo.origin), 'paradigm-threat-files.iad1.relaygateway.net')
   assert.equal(classifyAddedUrl('https://paradigmthreat.net').kind, 'site')
 })
 
 test('isKnownNodeApex does not treat repo hosts as nodes', () => {
-  assert.equal(isKnownNodeApex('dfw1.relaygateway.net'), true)
-  assert.equal(isKnownNodeApex('paradigm-threat-files.dfw1.relaygateway.net'), false)
+  assert.equal(isKnownNodeApex('iad1.relaygateway.net'), true)
+  assert.equal(isKnownNodeApex('paradigm-threat-files.iad1.relaygateway.net'), false)
 })
 
 test('repoSiteOrigin builds {repo}.{node}', () => {
   assert.equal(
-    repoSiteOrigin('paradigm-threat-files', 'dfw1.relaygateway.net'),
-    'https://paradigm-threat-files.dfw1.relaygateway.net',
+    repoSiteOrigin('paradigm-threat-files', 'iad1.relaygateway.net'),
+    'https://paradigm-threat-files.iad1.relaygateway.net',
   )
 })
 
@@ -91,8 +104,8 @@ test('pickRepoMirror prefers healthy low-latency and rotates in-band', () => {
       statusRepos: [{ name: 'files', on_disk: true }],
     },
     {
-      host: 'https://dfw1.relaygateway.net',
-      nodeFqdn: 'dfw1.relaygateway.net',
+      host: 'https://sjc1.relaygateway.net',
+      nodeFqdn: 'sjc1.relaygateway.net',
       healthy: true,
       probes: [{ ok: true, latencyMs: 40 }],
       statusRepos: [{ name: 'files', on_disk: true }],
@@ -107,16 +120,16 @@ test('pickRepoMirror prefers healthy low-latency and rotates in-band', () => {
   ]
   const a = pickRepoMirror('files', peers, () => 0)
   const b = pickRepoMirror('files', peers, () => 1)
-  assert.equal(a, 'https://files.dfw1.relaygateway.net')
-  // iad1 is outside the 80ms/25% band of 40ms, so rotation stays on dfw1
-  assert.equal(b, 'https://files.dfw1.relaygateway.net')
+  assert.equal(a, 'https://files.sjc1.relaygateway.net')
+  // iad1 is outside the 80ms/25% band of 40ms, so rotation stays on sjc1
+  assert.equal(b, 'https://files.sjc1.relaygateway.net')
 })
 
 test('pickRepoMirror rotates among close healthy mirrors', () => {
   const peers = [
     {
-      host: 'https://dfw1.relaygateway.net',
-      nodeFqdn: 'dfw1.relaygateway.net',
+      host: 'https://sjc1.relaygateway.net',
+      nodeFqdn: 'sjc1.relaygateway.net',
       healthy: true,
       probes: [{ ok: true, latencyMs: 50 }],
       statusRepos: [{ name: 'files', on_disk: true }],
@@ -131,7 +144,7 @@ test('pickRepoMirror rotates among close healthy mirrors', () => {
   ]
   const first = pickRepoMirror('files', peers, () => 0)
   const second = pickRepoMirror('files', peers, () => 1)
-  assert.equal(first, 'https://files.dfw1.relaygateway.net')
+  assert.equal(first, 'https://files.sjc1.relaygateway.net')
   assert.equal(second, 'https://files.iad1.relaygateway.net')
 })
 
@@ -190,7 +203,7 @@ test('unsupportedMessage is explicit', () => {
 
 test('firstReachablePeer fails over in list order', () => {
   const peers = [
-    { host: 'https://dfw1.relaygateway.net', probes: [{ ok: false }] },
+    { host: 'https://sjc1.relaygateway.net', probes: [{ ok: false }] },
     { host: 'https://iad1.relaygateway.net', probes: [{ ok: true, latencyMs: 80 }] },
     { host: 'https://hkg1.relaygateway.net', probes: [{ ok: true, latencyMs: 20 }] },
   ]
@@ -200,7 +213,7 @@ test('firstReachablePeer fails over in list order', () => {
 
 test('catalogRowsFromPeer keeps catalog-only names ahead of extras', () => {
   const rows = catalogRowsFromPeer({
-    host: 'https://dfw1.relaygateway.net',
+    host: 'https://iad1.relaygateway.net',
     probes: [{ ok: true }],
     statusRepos: [
       { name: 'listed', in_catalog: true, on_disk: false, description: 'From catalog' },
