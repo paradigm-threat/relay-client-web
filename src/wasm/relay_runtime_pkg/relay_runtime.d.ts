@@ -9,6 +9,11 @@ export function consume_render_requested(): boolean;
 export function get_android_styles(state_json: string, selector: string, classes_json: string): string;
 
 /**
+ * Current progressive readiness phase (0..=4).
+ */
+export function get_client_live_phase(): number;
+
+/**
  * Last theme name passed to `setCurrentTheme` / `set_theme_and_render`.
  */
 export function get_current_theme_name(): string;
@@ -61,6 +66,11 @@ export function is_client_live(): boolean;
 export function markdown_to_ast_json(markdown: string, allowed_html_tags_json: string): string;
 
 /**
+ * Diff two VNode JSON trees → coarse patch list JSON (`[{op,data},…]`).
+ */
+export function patches_json(old_json: string, new_json: string): string;
+
+/**
  * Post a message to the host via window.postMessage. Host receives via addEventListener("message", ...).
  * Payload is wrapped as { type: "relay-runtime", payload } so host can filter.
  */
@@ -99,8 +109,14 @@ export function run_hook_with_host(source: string, module_map_json: string, them
 
 /**
  * Mark the embed client as live (post-hydrate / CSR). CleverScript `isClientLive()`.
+ * Sets live phase to at least 1 (shell). Prefer [`set_client_live_phase`] for incremental hosts.
  */
 export function set_client_live(live: boolean): void;
+
+/**
+ * Progressive readiness 0..=4 (SSR → shell → catalog → feeds → interactive).
+ */
+export function set_client_live_phase(phase: number): void;
 
 /**
  * Set current theme, update LAST_STATE, and return single-theme CSS for immediate apply.
@@ -120,6 +136,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly consume_render_requested: () => number;
+    readonly get_client_live_phase: () => number;
     readonly get_current_theme_name: () => [number, number];
     readonly get_injected_css: () => [number, number];
     readonly get_pending_messages: () => [number, number];
@@ -127,6 +144,7 @@ export interface InitOutput {
     readonly invoke_handler: (a: number) => [number, number];
     readonly is_client_live: () => number;
     readonly markdown_to_ast_json: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly patches_json: (a: number, b: number, c: number, d: number) => [number, number];
     readonly post_message_to_host: (a: number, b: number) => [number, number];
     readonly push_message_from_host: (a: number, b: number) => void;
     readonly run_hook: (a: number, b: number) => [number, number, number, number];
@@ -135,6 +153,7 @@ export interface InitOutput {
     readonly set_client_live: (a: number) => void;
     readonly set_theme_and_render: (a: number, b: number) => [number, number];
     readonly set_verbose: (a: number) => void;
+    readonly set_client_live_phase: (a: number) => void;
     readonly get_android_styles: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly get_default_state_json: () => [number, number];
     readonly get_theme_list_json: (a: number, b: number) => [number, number];

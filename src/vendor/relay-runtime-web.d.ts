@@ -32,54 +32,7 @@ export interface RenderHookOptions {
   initialPath?: string;
   /** Optional theme YAML; when omitted, fetched from known theme paths on host. */
   themeYaml?: string;
-  /** Boot mode: auto (hydrate when data-relay-ssr=1), csr, or hydrate. */
-  mode?: 'auto' | 'csr' | 'hydrate';
 }
-
-/** Scan hook source for local `from '…'` / `from "…"` import specs. */
-export function localImportSpecs(source: string): string[];
-
-/** Resolve a local import spec relative to the importing module path. */
-export function resolveImportRel(importer: string, spec: string): string;
-
-/** Insert module source under both `rel` and `/rel`. */
-export function putModuleInMap(
-  moduleMap: Record<string, string>,
-  pathKey: string,
-  text: string,
-): void;
-
-/** True when text looks like hook source, not an HTML fallback page. */
-export function looksLikeHookSource(text: string): boolean;
-
-/** Max modules loaded by CSR import-graph walk. */
-export const IMPORT_CLOSURE_MAX_MODULES: number;
-
-/**
- * BFS of static local imports (CSR parity with gateway SSR import closure).
- * `fetchSource` returns module text or null when missing.
- */
-export function preloadImportClosure(
-  moduleMap: Record<string, string>,
-  fetchSource: (rel: string) => Promise<string | null | undefined>,
-  onLoaded?: (rel: string) => void,
-): Promise<Record<string, string>>;
-
-export interface BootStatus {
-  phase: string;
-  message: string;
-  detail: string;
-  progress: string;
-}
-
-/** Publish boot phase to mount element (dataset + relay-boot-status event). */
-export function setBootStatus(
-  container: HTMLElement | null | undefined,
-  status?: { phase?: string; message?: string; detail?: string; progress?: string },
-): void;
-
-/** Read boot status from container dataset or last global status. */
-export function getBootStatus(container?: HTMLElement | null): BootStatus;
 
 /** Install globalThis.__relay_host_fetch for CleverScript Host.fetch (sync XHR). Idempotent. */
 export function installRelayHostFetch(): void;
@@ -140,7 +93,11 @@ export function setCurrentTheme(name: string): void;
 
 /** Mark embed client live after hydrate/CSR (CleverScript isClientLive).
  * Host also sets html[data-pt-hydrated]="1" via syncHtmlHydratedAttr. */
-export function setClientLive(live: boolean): void;
+export function setClientLive?(live: boolean): void;
+
+/** Progressive readiness 0..=4 (see docs/HYDRATE_PHASES.md). */
+export function setClientLivePhase?(phase: number): void;
+export function getClientLivePhase?(): number;
 
 /** Document that owns `container` (iframe `ownerDocument`, else the page). */
 export function documentFor(container?: Element | null): Document | null;
@@ -156,4 +113,7 @@ export function ensureStyleElement(id: string, parent: ParentNode | null): HTMLS
 
 /** Set `html[data-pt-hydrated]` on the mount document, not the operator SPA. */
 export function syncHtmlHydratedAttr(live: boolean, container?: Element | null): void;
+
+/** Set `html[data-pt-live-phase]` (+ hydrated flag when phase ≥ 1). */
+export function syncHtmlLivePhaseAttr(phase: number, container?: Element | null): void;
 

@@ -2,6 +2,7 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const consume_render_requested: () => number;
+export const get_client_live_phase: () => number;
 export const get_current_theme_name: () => [number, number];
 export const get_injected_css: () => [number, number];
 export const get_pending_messages: () => [number, number];
@@ -9,6 +10,7 @@ export const get_themes: () => [number, number];
 export const invoke_handler: (a: number) => [number, number];
 export const is_client_live: () => number;
 export const markdown_to_ast_json: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+export const patches_json: (a: number, b: number, c: number, d: number) => [number, number];
 export const post_message_to_host: (a: number, b: number) => [number, number];
 export const push_message_from_host: (a: number, b: number) => void;
 export const run_hook: (a: number, b: number) => [number, number, number, number];
@@ -17,6 +19,7 @@ export const run_hook_with_host: (a: number, b: number, c: number, d: number, e:
 export const set_client_live: (a: number) => void;
 export const set_theme_and_render: (a: number, b: number) => [number, number];
 export const set_verbose: (a: number) => void;
+export const set_client_live_phase: (a: number) => void;
 export const get_android_styles: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
 export const get_default_state_json: () => [number, number];
 export const get_theme_list_json: (a: number, b: number) => [number, number];

@@ -12,10 +12,35 @@ import init, {
   consume_render_requested,
   set_client_live,
   is_client_live,
+  set_client_live_phase,
+  get_client_live_phase,
   get_current_theme_name,
 } from '../wasm/relay_runtime_pkg/relay_runtime.js';
 
 let _styleId = 'relay-ssr-theme';
+
+/** Yield so pending clicks/paint can run before a long WASM sync stretch. */
+function yieldToMain() {
+  return new Promise((resolve) => {
+    try {
+      if (typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function') {
+        scheduler.yield().then(resolve, () => setTimeout(resolve, 0));
+        return;
+      }
+    } catch (_) {
+      /* optional */
+    }
+    try {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => setTimeout(resolve, 0));
+        return;
+      }
+    } catch (_) {
+      /* optional */
+    }
+    setTimeout(resolve, 0);
+  });
+}
 
 /** Document that owns `container` (iframe-safe; never assume the SPA `document`). */
 export function documentFor(container) {
@@ -127,9 +152,9 @@ function syncHtmlThemeClass(target) {
 }
 
 /**
- * Park tips style inactive chrome via html[data-pt-hydrated].
- * "0" = SSR / pre-live; "1" = CleverScript client interactive (isClientLive).
- * Gateway SSR HTML should emit data-pt-hydrated="0" on <html>; this flips to "1" once.
+ * Park tips style inactive chrome via html[data-pt-hydrated] + data-pt-live-phase.
+ * Phase 0 = SSR/cold · 1 = shell · 2 = catalog · 3 = feeds · 4 = interactive.
+ * Gateway SSR HTML should emit data-pt-hydrated="0"; this flips as the host advances.
  */
 export function syncHtmlHydratedAttr(live, container) {
   const doc = documentFor(container);
@@ -138,6 +163,162 @@ export function syncHtmlHydratedAttr(live, container) {
     const root = doc.documentElement;
     if (!root || typeof root.setAttribute !== 'function') return;
     root.setAttribute('data-pt-hydrated', live ? '1' : '0');
+    let phase = live ? 1 : 0;
+    try {
+      if (typeof get_client_live_phase === 'function') {
+        phase = Number(get_client_live_phase()) || phase;
+      }
+    } catch (_) {
+      /* optional until wasm rebuild */
+    }
+    root.setAttribute('data-pt-live-phase', String(phase));
+  } catch (_) {
+    /* optional */
+  }
+}
+
+export function syncHtmlLivePhaseAttr(phase, container) {
+  const doc = documentFor(container);
+  if (!doc) return;
+  try {
+    const root = doc.documentElement;
+    if (!root || typeof root.setAttribute !== 'function') return;
+    const p = Math.max(0, Math.min(4, Number(phase) || 0));
+    root.setAttribute('data-pt-live-phase', String(p));
+    root.setAttribute('data-pt-hydrated', p >= 1 ? '1' : '0');
+  } catch (_) {
+    /* optional */
+  }
+}
+
+/**
+ * Optional same-origin RUM beacon (gateway `POST /api/rum` when RELAY_RUM_ENABLED=1).
+ * Records TTFC (first hit-testable nav link) + LCP/INP/CLS when PerformanceObserver exists.
+ */
+export function installRumBeacon(container, { hydrateOk = true } = {}) {
+  try {
+    const doc = documentFor(container) || document;
+    const win = doc.defaultView || window;
+    if (!win || typeof win.fetch !== 'function') return;
+    const sample = (() => {
+      try {
+        const m = /(?:^|[?&])rum_sample=([0-9.]+)/.exec(win.location.search || '');
+        if (m) return Math.min(1, Math.max(0, parseFloat(m[1])));
+      } catch (_) { /* optional */ }
+      return 1;
+    })();
+    if (Math.random() > sample) return;
+    if (win.__relayRumInstalled) return;
+    win.__relayRumInstalled = true;
+    const t0 = (win.performance && performance.now) ? performance.now() : Date.now();
+    const payload = {
+      path: (win.location && win.location.pathname) || '/',
+      embed_oid: null,
+      hydrate_ok: !!hydrateOk,
+      ttfc_ms: null,
+      lcp_ms: null,
+      inp_ms: null,
+      cls: null,
+    };
+    try {
+      const scripts = doc.querySelectorAll('script[src*="/assets/"]');
+      for (const s of scripts) {
+        const m = /\/assets\/c\/([0-9a-f]{7,40})\//i.exec(s.src || '');
+        if (m) {
+          payload.embed_oid = m[1];
+          break;
+        }
+      }
+    } catch (_) { /* optional */ }
+
+    const send = () => {
+      try {
+        const body = JSON.stringify(payload);
+        if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+          const blob = new Blob([body], { type: 'application/json' });
+          if (navigator.sendBeacon('/api/rum', blob)) return;
+        }
+        win.fetch('/api/rum', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      } catch (_) { /* optional */ }
+    };
+
+    let sent = false;
+    const maybeSend = () => {
+      if (sent) return;
+      if (payload.ttfc_ms == null) return;
+      sent = true;
+      // Allow LCP a moment; then flush.
+      setTimeout(send, 2500);
+    };
+
+    const markTtfc = () => {
+      if (payload.ttfc_ms != null) return;
+      const now = (win.performance && performance.now) ? performance.now() : Date.now();
+      payload.ttfc_ms = Math.round(now - t0);
+      maybeSend();
+    };
+
+    try {
+      const nav = doc.querySelector('nav a[href], a[href]');
+      if (nav) {
+        const r = nav.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          const x = Math.min(win.innerWidth - 2, Math.max(2, r.left + 4));
+          const y = Math.min(win.innerHeight - 2, Math.max(2, r.top + 4));
+          const hit = doc.elementFromPoint(x, y);
+          if (hit && (hit === nav || nav.contains(hit))) markTtfc();
+        }
+      }
+    } catch (_) { /* optional */ }
+
+    try {
+      doc.addEventListener(
+        'pointerdown',
+        (e) => {
+          const a = e.target && e.target.closest && e.target.closest('a[href]');
+          if (a) markTtfc();
+        },
+        { once: true, capture: true },
+      );
+    } catch (_) { /* optional */ }
+
+    try {
+      if (typeof PerformanceObserver === 'function') {
+        const po = new PerformanceObserver((list) => {
+          for (const e of list.getEntries()) {
+            if (e.entryType === 'largest-contentful-paint') {
+              payload.lcp_ms = Math.round(e.startTime);
+            } else if (e.entryType === 'event' && e.name === 'event' && e.duration != null) {
+              // INP-ish: keep max interaction delay when available
+              const d = e.duration;
+              if (payload.inp_ms == null || d > payload.inp_ms) payload.inp_ms = Math.round(d);
+            } else if (e.entryType === 'layout-shift' && !e.hadRecentInput) {
+              payload.cls = (payload.cls || 0) + (e.value || 0);
+            }
+          }
+        });
+        try {
+          po.observe({ type: 'largest-contentful-paint', buffered: true });
+        } catch (_) { /* optional */ }
+        try {
+          po.observe({ type: 'layout-shift', buffered: true });
+        } catch (_) { /* optional */ }
+        try {
+          po.observe({ type: 'event', buffered: true, durationThreshold: 16 });
+        } catch (_) { /* optional */ }
+      }
+    } catch (_) { /* optional */ }
+
+    // Fallback TTFC if hit-test was early but not marked
+    setTimeout(() => {
+      if (payload.ttfc_ms == null) markTtfc();
+      maybeSend();
+    }, 3000);
   } catch (_) {
     /* optional */
   }
@@ -1016,6 +1197,121 @@ function hydrateElementNode(v, el, invokeHandler, onAfterInvoke, path) {
  * @param {function(): void} [onAfterInvoke] - Called after each handler; if consume_render_requested(), should re-run and re-apply.
  * @returns {DocumentFragment|HTMLElement|Text|null}
  */
+/**
+ * Coarse VNode patches (mirrors `vdom::reconcile::patches`). Prefer replacing the smallest
+ * divergent subtree; prop-only changes replace that element.
+ * @returns {{ path: number[], tree: object }[]}
+ */
+export function computeVnodePatches(oldV, newV) {
+  const acc = [];
+  patchesAt(oldV, newV, [], acc);
+  return acc;
+}
+
+function vnodeDeepEqual(a, b) {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+function patchesAt(oldV, newV, path, acc) {
+  if (vnodeDeepEqual(oldV, newV)) return;
+  const oEl = oldV && oldV.Element;
+  const nEl = newV && newV.Element;
+  if (oEl && nEl) {
+    const sameTag = oEl.tag === nEl.tag && (oEl.key ?? null) === (nEl.key ?? null);
+    const oKids = oEl.children || [];
+    const nKids = nEl.children || [];
+    if (sameTag && oKids.length === nKids.length) {
+      if (!vnodeDeepEqual(oEl.props || {}, nEl.props || {})) {
+        acc.push({ path: path.slice(), tree: newV });
+        return;
+      }
+      for (let i = 0; i < oKids.length; i++) {
+        patchesAt(oKids[i], nKids[i], path.concat(i), acc);
+      }
+      return;
+    }
+  }
+  const oText = oldV && oldV.Text !== undefined;
+  const nText = newV && newV.Text !== undefined;
+  if (oText && nText && oldV.Text === newV.Text) return;
+  acc.push({ path: path.slice(), tree: newV });
+}
+
+function vnodeProducesDom(v) {
+  if (!v || v.Empty !== undefined) return false;
+  return true;
+}
+
+function patchableChildNodes(parent) {
+  const out = [];
+  if (!parent || !parent.childNodes) return out;
+  for (const n of parent.childNodes) {
+    if (n.nodeType === 1 || n.nodeType === 3) out.push(n);
+  }
+  return out;
+}
+
+function childrenForPatchPath(v) {
+  if (v && v.Element) return v.Element.children || [];
+  if (Array.isArray(v)) return v;
+  return [];
+}
+
+/**
+ * Apply coarse ReplaceSubtree patches under `container` (hydrate/CSR root).
+ * @returns {boolean} false → caller should fall back to full wipe
+ */
+export function applyVnodePatches(container, prevRoot, patches, invokeHandler, onAfterInvoke) {
+  if (!container || !patches || !patches.length) return true;
+  for (const p of patches) {
+    const path = p.path || [];
+    const tree = p.tree;
+    if (path.length === 0) {
+      // Root replace — not cheaper than wipe; signal fallback.
+      return false;
+    }
+    let parentDom = container;
+    let vnode = prevRoot;
+    let targetNode = null;
+    for (let d = 0; d < path.length; d++) {
+      const idx = path[d];
+      const kids = childrenForPatchPath(vnode);
+      const domKids = patchableChildNodes(parentDom);
+      let di = 0;
+      let found = null;
+      let foundV = null;
+      for (let i = 0; i < kids.length; i++) {
+        if (!vnodeProducesDom(kids[i])) continue;
+        if (i === idx) {
+          found = domKids[di];
+          foundV = kids[i];
+          break;
+        }
+        di += 1;
+      }
+      if (!found) return false;
+      if (d === path.length - 1) {
+        targetNode = found;
+        break;
+      }
+      parentDom = found;
+      vnode = foundV;
+    }
+    if (!targetNode || !parentDom) return false;
+    const next = vnodeToDom(tree, invokeHandler, onAfterInvoke);
+    if (!next) {
+      parentDom.removeChild(targetNode);
+      continue;
+    }
+    parentDom.replaceChild(next, targetNode);
+  }
+  return true;
+}
+
 export function vnodeToDom(v, invokeHandler = invoke_handler, onAfterInvoke = null) {
   if (!v) return null;
   if (v.Empty !== undefined) return null; // VNode::Empty
@@ -1315,6 +1611,7 @@ export async function renderHook(container, options = {}) {
   let hydratedOnce = false;
   let livePromoted = false;
   let liveUpgradeScheduled = false;
+  let prevVnode = null;
   let themeYamlText = typeof themeYaml === 'string' ? themeYaml : '';
   const branchNorm = typeof branch === 'string' ? branch.trim() : '';
   const initialPathNorm = typeof initialPath === 'string' ? initialPath.trim() : '';
@@ -1345,26 +1642,81 @@ export async function renderHook(container, options = {}) {
     }
   }
 
-  /** Keep SSR DOM clickable; fill live-only widgets when the browser is idle. */
+  /**
+   * Incremental live ladder (uniform with Android JNI nativeSetClientLivePhase):
+   *   1 shell → 2 catalog → 3 feeds → 4 interactive
+   * Each step is one idle doRender (applyPatches when possible) so mobile/web
+   * never pay the full P2+P3 tree on the first frame after hydrate.
+   */
   function scheduleDeferredLiveUpgrade() {
     if (liveUpgradeScheduled) return;
     liveUpgradeScheduled = true;
-    const run = () => {
+    const phases = [2, 3, 4];
+    let idx = 0;
+    const runNext = () => {
+      if (idx >= phases.length) return;
+      const phase = phases[idx++];
+      try {
+        // Skip if host/WASM already at or past this phase (monotonic ladder).
+        if (typeof get_client_live_phase === 'function') {
+          const cur = Number(get_client_live_phase()) || 0;
+          if (cur >= phase) {
+            syncHtmlLivePhaseAttr(cur, container);
+            if (idx < phases.length) scheduleIdle(runNext, 80);
+            return;
+          }
+        }
+        if (typeof set_client_live_phase === 'function') {
+          set_client_live_phase(phase);
+        } else if (typeof set_client_live === 'function') {
+          set_client_live(true);
+        }
+      } catch (_) {
+        /* optional until wasm rebuild */
+      }
+      syncHtmlLivePhaseAttr(phase, container);
       try {
         doRender();
       } catch (e) {
-        console.error('[relay-runtime] deferred live upgrade failed:', e);
+        console.error('[relay-runtime] live phase', phase, 'failed:', e);
+      }
+      if (idx < phases.length) {
+        scheduleIdle(runNext, 120 + idx * 80);
       }
     };
+    // Two rAFs then idle: paint SSR chrome + flush input before catalog work.
     try {
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(run, { timeout: 2500 });
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => scheduleIdle(runNext, 200));
+        });
         return;
       }
     } catch (_) {
       /* optional */
     }
-    setTimeout(run, 50);
+    scheduleIdle(runNext, 200);
+  }
+
+  function scheduleIdle(fn, timeoutMs) {
+    try {
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(
+          () => {
+            try {
+              fn();
+            } catch (e) {
+              console.error('[relay-runtime] idle task failed:', e);
+            }
+          },
+          { timeout: timeoutMs || 2500 },
+        );
+        return;
+      }
+    } catch (_) {
+      /* optional */
+    }
+    setTimeout(fn, Math.min(timeoutMs || 120, 500));
   }
 
   try {
@@ -1581,32 +1933,64 @@ export async function renderHook(container, options = {}) {
         const ok = hydrateVnode(vnode, container, invoke_handler, doRender);
         if (ok) {
           hydratedOnce = true;
+          prevVnode = vnode;
           container.dataset.relayHydrated = '1';
-          // Promote to live without wiping SSR HTML — a synchronous wipe+vnodeToDom of a
-          // large park page stalls the main thread (~seconds) and makes links feel dead.
+          // Promote shell (phase 1) without wiping SSR HTML. Catalog/feeds/interactive
+          // advance on idle via scheduleDeferredLiveUpgrade → phases 2→3→4.
           try {
-            if (typeof set_client_live === 'function') set_client_live(true);
+            if (typeof set_client_live_phase === 'function') {
+              set_client_live_phase(1);
+            } else if (typeof set_client_live === 'function') {
+              set_client_live(true);
+            }
           } catch (_) { /* optional */ }
-          syncHtmlHydratedAttr(true, container);
+          syncHtmlLivePhaseAttr(1, container);
           livePromoted = true;
           enableClientOnlyChrome(container);
           setBootStatus(container, { phase: 'live', message: 'Ready' });
+          installRumBeacon(container, { hydrateOk: true });
           scheduleDeferredLiveUpgrade();
           return;
         }
         console.warn('[relay-runtime] SSR hydrate mismatch; falling back to client render');
       }
+      if (
+        livePromoted &&
+        prevVnode &&
+        container.childNodes &&
+        container.childNodes.length > 0
+      ) {
+        try {
+          const patchList = computeVnodePatches(prevVnode, vnode);
+          if (patchList.length === 0) {
+            prevVnode = vnode;
+            setBootStatus(container, { phase: 'live', message: 'Ready' });
+            return;
+          }
+          if (applyVnodePatches(container, prevVnode, patchList, invoke_handler, doRender)) {
+            prevVnode = vnode;
+            setBootStatus(container, { phase: 'live', message: 'Ready' });
+            return;
+          }
+        } catch (e) {
+          console.warn('[relay-runtime] applyPatches failed; full replace', e);
+        }
+      }
       container.innerHTML = '';
       delete container.dataset.relaySsr;
       if (!livePromoted) {
         try {
-          if (typeof set_client_live === 'function') set_client_live(true);
+          if (typeof set_client_live_phase === 'function') {
+            set_client_live_phase(1);
+          } else if (typeof set_client_live === 'function') {
+            set_client_live(true);
+          }
         } catch (_) { /* optional */ }
-        syncHtmlHydratedAttr(true, container);
+        syncHtmlLivePhaseAttr(1, container);
         livePromoted = true;
         setBootStatus(container, { phase: 'live', message: 'Ready' });
         injectHostManifestFields(hooksManifest, container);
-        // Re-run with isClientLive() true so interactive controls enable.
+        // Re-run at shell phase only; catalog/feeds fill on idle ladder.
         for (let pass = 0; pass < 16; pass++) {
           vnodeJson = run_hook_with_host(
             source,
@@ -1622,8 +2006,11 @@ export async function renderHook(container, options = {}) {
       }
       const el = vnodeToDom(vnode, invoke_handler, doRender);
       if (el) container.appendChild(el);
+      prevVnode = vnode;
       if (livePromoted) {
         setBootStatus(container, { phase: 'live', message: 'Ready' });
+        installRumBeacon(container, { hydrateOk: !!container.dataset?.relayHydrated });
+        scheduleDeferredLiveUpgrade();
       }
     } catch (e) {
       // SSR markup (if any) is still intact when render fails before the innerHTML wipe;
@@ -1639,6 +2026,9 @@ export async function renderHook(container, options = {}) {
   installEmbedActionDelegation(container, () => {
     doRender();
   });
+  // Let the browser flush paint + pending pointer events before the first WASM render.
+  setBootStatus(container, { phase: 'render', message: 'Preparing UI…' });
+  await yieldToMain();
   doRender();
   } catch (e) {
     const msg = formatRuntimeErrorMessage(e?.message ?? e ?? 'Boot failed');

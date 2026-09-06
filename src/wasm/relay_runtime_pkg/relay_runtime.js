@@ -35,6 +35,15 @@ export function get_android_styles(state_json, selector, classes_json) {
 }
 
 /**
+ * Current progressive readiness phase (0..=4).
+ * @returns {number}
+ */
+export function get_client_live_phase() {
+    const ret = wasm.get_client_live_phase();
+    return ret >>> 0;
+}
+
+/**
  * Last theme name passed to `setCurrentTheme` / `set_theme_and_render`.
  * @returns {string}
  */
@@ -212,6 +221,29 @@ export function markdown_to_ast_json(markdown, allowed_html_tags_json) {
 }
 
 /**
+ * Diff two VNode JSON trees → coarse patch list JSON (`[{op,data},…]`).
+ * @param {string} old_json
+ * @param {string} new_json
+ * @returns {string}
+ */
+export function patches_json(old_json, new_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(old_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(new_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.patches_json(ptr0, len0, ptr1, len1);
+        deferred3_0 = ret[0];
+        deferred3_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Post a message to the host via window.postMessage. Host receives via addEventListener("message", ...).
  * Payload is wrapped as { type: "relay-runtime", payload } so host can filter.
  * @param {string} payload_json
@@ -358,10 +390,19 @@ export function run_hook_with_host(source, module_map_json, theme_yaml, hooks_ma
 
 /**
  * Mark the embed client as live (post-hydrate / CSR). CleverScript `isClientLive()`.
+ * Sets live phase to at least 1 (shell). Prefer [`set_client_live_phase`] for incremental hosts.
  * @param {boolean} live
  */
 export function set_client_live(live) {
     wasm.set_client_live(live);
+}
+
+/**
+ * Progressive readiness 0..=4 (SSR → shell → catalog → feeds → interactive).
+ * @param {number} phase
+ */
+export function set_client_live_phase(phase) {
+    wasm.set_client_live_phase(phase);
 }
 
 /**
@@ -670,7 +711,7 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 192, function: Function { arguments: [], shim_idx: 193, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 292, function: Function { arguments: [], shim_idx: 293, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h70836fd6b4c627df, wasm_bindgen__convert__closures_____invoke__h50d33f36c27ea276);
             return ret;
         },
