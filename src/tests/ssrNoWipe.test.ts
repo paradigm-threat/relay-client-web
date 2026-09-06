@@ -163,13 +163,9 @@ describe('replaceSsrPlaceholdersFromVnode', () => {
   })
 })
 
-describe('vnodeToDom smoke', () => {
-  it('builds a simple element', () => {
-    const el = vnodeToDom(
-      { Element: { tag: 'p', props: {}, key: null, children: [{ Text: 'hi' }] } },
-      () => {},
-      null,
-    )
-    assert.equal(el?.textContent, 'hi')
+describe('yieldForInteractive', () => {
+  it('resolves without throwing', async () => {
+    const { yieldForInteractive } = await import('../vendor/relay-runtime-web.js')
+    await yieldForInteractive(10)
   })
 })
