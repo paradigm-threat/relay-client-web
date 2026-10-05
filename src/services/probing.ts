@@ -17,6 +17,11 @@ export interface FullProbeResult {
   healthy?: boolean
   lastUpdateTs?: number
   reposOk?: boolean
+  ipfsOk?: boolean
+  ipfsEnabled?: boolean
+  ipfsApiReachable?: boolean
+  ipfsCacheCidCount?: number
+  ipfsInFlightCount?: number
 }
 
 export async function fullProbePeer (host: string): Promise<FullProbeResult> {
@@ -33,6 +38,7 @@ export async function fullProbePeer (host: string): Promise<FullProbeResult> {
   }
   const s = result.status
   const statusRepos = s.repos || []
+  const ipfs = s.self?.ipfs
   return {
     probes: [{
       protocol: 'https',
@@ -50,6 +56,11 @@ export async function fullProbePeer (host: string): Promise<FullProbeResult> {
     // and waiting on those probes was the fake "4000ms Degraded".
     healthy: true,
     reposOk: s.repos_ok,
+    ipfsOk: s.ipfs_ok,
+    ipfsEnabled: ipfs?.enabled ?? ipfs?.api_configured,
+    ipfsApiReachable: ipfs?.api_reachable,
+    ipfsCacheCidCount: ipfs?.cache_cid_count,
+    ipfsInFlightCount: ipfs?.in_flight_count,
     lastUpdateTs: Date.now(),
   }
 }

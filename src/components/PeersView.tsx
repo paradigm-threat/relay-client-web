@@ -61,6 +61,11 @@ export function PeersView({onOpenRepo, onOpenSite, onUnsupported}: PeersViewProp
                     nodeFqdn: result.nodeFqdn,
                     healthy: result.healthy,
                     reposOk: result.reposOk,
+                    ipfsOk: result.ipfsOk,
+                    ipfsEnabled: result.ipfsEnabled,
+                    ipfsApiReachable: result.ipfsApiReachable,
+                    ipfsCacheCidCount: result.ipfsCacheCidCount,
+                    ipfsInFlightCount: result.ipfsInFlightCount,
                     isProbing: false,
                 }))
             } catch {
@@ -106,6 +111,38 @@ export function PeersView({onOpenRepo, onOpenSite, onUnsupported}: PeersViewProp
         loadAndProbePeers().catch((e) => console.error('[PeersView] Load error:', e))
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+    const renderIpfsStatus = (peer: PeerInfo) => {
+        if (peer.ipfsEnabled === false) {
+            return <TSDiv
+                tag="span"
+                className="text-xs px-2 py-1 rounded whitespace-nowrap"
+                style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)' }}
+                title="IPFS not configured on this node"
+            >IPFS off</TSDiv>
+        }
+        if (peer.ipfsOk === true || peer.ipfsApiReachable === true) {
+            const cache = peer.ipfsCacheCidCount != null ? ` · cache ${peer.ipfsCacheCidCount}` : ''
+            const inflight = peer.ipfsInFlightCount != null && peer.ipfsInFlightCount > 0
+                ? ` · in-flight ${peer.ipfsInFlightCount}`
+                : ''
+            return <TSDiv
+                tag="span"
+                className="text-xs px-2 py-1 rounded whitespace-nowrap"
+                style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)' }}
+                title="Kubo API reachable"
+            >{`IPFS OK${cache}${inflight}`}</TSDiv>
+        }
+        if (peer.ipfsOk === false || peer.ipfsApiReachable === false) {
+            return <TSDiv
+                tag="span"
+                className="text-xs px-2 py-1 rounded whitespace-nowrap"
+                style={{ background: 'var(--status-bad-bg)', color: 'var(--status-bad-text)' }}
+                title="Kubo configured but not reachable"
+            >IPFS DOWN</TSDiv>
+        }
+        return null
+    }
 
     const renderProbeStatus = (peer: PeerInfo) => {
         if (peer.isProbing) {
@@ -272,6 +309,7 @@ export function PeersView({onOpenRepo, onOpenSite, onUnsupported}: PeersViewProp
                                             >
                                                 <TSDiv tag="span" className="font-medium">{shortNodeLabel(peer.host)}</TSDiv>
                                                 {renderProbeStatus(peer)}
+                                                {renderIpfsStatus(peer)}
                                                 {!isFleetDefaultHost(peer.host) && (
                                                     <TSDiv
                                                         tag="button"

@@ -34,6 +34,11 @@ export interface PeerInfo {
     nodeFqdn?: string
     healthy?: boolean
     reposOk?: boolean
+    ipfsOk?: boolean
+    ipfsEnabled?: boolean
+    ipfsApiReachable?: boolean
+    ipfsCacheCidCount?: number
+    ipfsInFlightCount?: number
     isProbing?: boolean
 }
 

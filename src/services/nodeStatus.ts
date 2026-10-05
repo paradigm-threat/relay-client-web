@@ -13,6 +13,23 @@ export interface NodeStatusRepo {
   head_branch?: string
   head_sha?: string
   branch_count?: number
+  ipfs?: {
+    thin?: boolean
+    cid_count?: number
+    cached_count?: number
+  }
+}
+
+export interface NodeIpfsSelf {
+  enabled?: boolean
+  ok?: boolean
+  api_configured?: boolean
+  api_reachable?: boolean
+  peer_id?: string
+  gateway?: string
+  cache_root?: string
+  cache_cid_count?: number
+  in_flight_count?: number
 }
 
 export interface NodeStatusSelf {
@@ -21,13 +38,16 @@ export interface NodeStatusSelf {
   repo_count?: number
   relay_server_id?: string
   mesh_role?: string
+  ipfs?: NodeIpfsSelf
 }
 
 export interface NodeStatus {
   schema_version: number
   status: string
   healthy: boolean
+  ipfs_ok?: boolean
   repos_ok?: boolean
+  indexes_ok?: boolean
   self?: NodeStatusSelf
   repos?: NodeStatusRepo[]
 }
@@ -51,6 +71,7 @@ export async function fetchNodeStatus (
   timeoutMs = 8000,
 ): Promise<FetchNodeStatusResult> {
   const origin = nodeOrigin.replace(/\/+$/, '')
+  // light=1 skips mesh peer fan-out but still probes local Kubo (ipfs_ok / self.ipfs).
   const url = `${origin}/api/status?format=json&light=1`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
