@@ -16,6 +16,17 @@ import init, {
   get_client_live_phase,
   get_current_theme_name,
 } from '../wasm/relay_runtime_pkg/relay_runtime.js';
+import {
+  installRelayGalleryHost,
+  buildRelayPopImage,
+  buildRelayImageGallery,
+} from './relay-gallery.js';
+
+try {
+  installRelayGalleryHost();
+} catch (_) {
+  /* gallery CE optional during early boot */
+}
 
 let _styleId = 'relay-ssr-theme';
 
@@ -781,8 +792,19 @@ export async function preloadImportClosure(moduleMap, fetchSource, onLoaded) {
       for (const spec of localImportSpecs(src)) {
         const rel = resolveImportRel(path, spec);
         if (!rel || moduleMapHas(moduleMap, rel) || queued.has(rel)) continue;
-        queued.add(rel);
-        toFetch.push(rel);
+        const underNative = rel.indexOf('/native/') >= 0 || rel.indexOf('native/') === 0;
+        // Never pull `*.web.js` / host browser scripts into the CleverScript module map.
+        const candidates = underNative
+          ? platformModuleCandidates(rel, detectRelayHostPlatform()).filter((c) => {
+              return c.indexOf('.web.') < 0 && c.indexOf('.host.') < 0;
+            })
+          : [rel];
+        for (let ci = 0; ci < candidates.length; ci = ci + 1) {
+          const cand = candidates[ci];
+          if (!cand || moduleMapHas(moduleMap, cand) || queued.has(cand)) continue;
+          queued.add(cand);
+          toFetch.push(cand);
+        }
       }
     }
     if (toFetch.length === 0) break;
@@ -950,19 +972,91 @@ function buildRelayAudioPlayer(props, invokeHandler, onAfterInvoke) {
   return audio;
 }
 
-/**
- * Build native HTML5 video shell for `relay-video-player` VNodes.
- * CleverScript controls: playing, currentTime, command/commandSeq/commandArg props.
- */
-function buildRelayVideoPlayer(props, invokeHandler, onAfterInvoke) {
-  const shell = document.createElement('div');
-  shell.className = 'relay-video-player-shell';
+/** Resolve `/wasm/c/{oid}/` from page scripts when `@relay/web-assets` is opted in. */
+function relayWasmPrefix() {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.__RELAY_WASM_PREFIX__) {
+      return String(globalThis.__RELAY_WASM_PREFIX__).replace(/\/?$/, '/');
+    }
+  } catch (_) {}
+  try {
+    const scripts = document.getElementsByTagName('script');
+    for (let i = 0; i < scripts.length; i++) {
+      const src = scripts[i].getAttribute('src') || '';
+      const m = src.match(/\/(?:assets|wasm)\/c\/([a-f0-9]{40})\//i);
+      if (m) return '/wasm/c/' + m[1] + '/';
+    }
+  } catch (_) {}
+  return '/wasm/';
+}
+
+/** Resolve CDN / pinned URL for @clevertree/relay-video-web player module. */
+function relayVideoWebModuleUrl() {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.__RELAY_VIDEO_WEB_URL__) {
+      return String(globalThis.__RELAY_VIDEO_WEB_URL__);
+    }
+  } catch (_) {}
+  return relayWasmPrefix() + 'relay_video_wasm_pkg/player.js';
+}
+
+function relayVideoWasmUrl() {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.__RELAY_VIDEO_WASM_URL__) {
+      return String(globalThis.__RELAY_VIDEO_WASM_URL__);
+    }
+  } catch (_) {}
+  return relayWasmPrefix() + 'relay_video_wasm_pkg/relay_video_wasm_bg.wasm';
+}
+
+function urlLooksMatroska(url) {
+  const u = String(url || '')
+    .split('?')[0]
+    .toLowerCase();
+  return u.endsWith('.mkv') || u.endsWith('.mka') || u.endsWith('.mks');
+}
+
+function nativeCanPlayUrl(url) {
+  if (urlLooksMatroska(url)) return false;
+  try {
+    const v = document.createElement('video');
+    if (/\.webm$/i.test(String(url).split('?')[0])) {
+      const r = v.canPlayType('video/webm; codecs="vp8, vorbis"');
+      return r === 'probably' || r === 'maybe';
+    }
+    const r = v.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"');
+    return r === 'probably' || r === 'maybe';
+  } catch (_) {
+    return !urlLooksMatroska(url);
+  }
+}
+
+function fireRelayVideoHandler(props, eventName, playerId, extra, invokeHandler, onAfterInvoke) {
+  const val = props && props[eventName];
+  if (!val || val.type !== 'HandlerId') return;
+  try {
+    push_message_from_host(
+      JSON.stringify({
+        type: 'relay-video',
+        event: eventName,
+        handlerId: val.value,
+        playerId,
+        ...(extra || {}),
+      }),
+    );
+    invokeHandler(val.value);
+  } catch (err) {
+    console.error('[relay-runtime] video handler failed:', err);
+  }
+  if (onAfterInvoke && consume_render_requested()) onAfterInvoke();
+}
+
+function attachHtml5VideoPlayer(shell, props, invokeHandler, onAfterInvoke, src) {
   const video = document.createElement('video');
   video.className = 'relay-video-player';
   video.setAttribute('playsinline', '');
   video.setAttribute('preload', 'metadata');
-
-  const src = resolveMediaUrl(propStringFromVnodeProps(props, 'src'));
+  video.dataset.relayEngine = 'native';
   if (src) video.src = src;
   const poster = propStringFromVnodeProps(props, 'poster');
   if (poster) video.poster = resolveMediaUrl(poster);
@@ -989,7 +1083,7 @@ function buildRelayVideoPlayer(props, invokeHandler, onAfterInvoke) {
     try {
       const tracks = JSON.parse(subtitlesJson);
       if (Array.isArray(tracks)) {
-        tracks.forEach((t, i) => {
+        tracks.forEach((t) => {
           if (!t || !t.src) return;
           const track = document.createElement('track');
           track.kind = 'subtitles';
@@ -1016,33 +1110,37 @@ function buildRelayVideoPlayer(props, invokeHandler, onAfterInvoke) {
   attachMediaHandler(video, 'play', props, 'onPlay', invokeHandler, onAfterInvoke);
   attachMediaHandler(video, 'pause', props, 'onPause', invokeHandler, onAfterInvoke);
   attachMediaHandler(video, 'ended', props, 'onEnded', invokeHandler, onAfterInvoke);
-  attachMediaHandler(video, 'error', props, 'onError', invokeHandler, onAfterInvoke);
   attachMediaHandler(video, 'loadedmetadata', props, 'onLoadedMetadata', invokeHandler, onAfterInvoke);
   attachMediaHandler(video, 'seeked', props, 'onSeeked', invokeHandler, onAfterInvoke);
+
+  // Native decode errors (or Matroska mis-routed here) escalate to WASM once.
+  let escalated = false;
+  video.addEventListener('error', () => {
+    if (escalated || !src) {
+      fireRelayVideoHandler(props, 'onError', playerId, {}, invokeHandler, onAfterInvoke);
+      return;
+    }
+    escalated = true;
+    try {
+      video.remove();
+    } catch (_) {}
+    shell.innerHTML = '';
+    mountWasmVideoPlayer(shell, props, invokeHandler, onAfterInvoke, src);
+  });
 
   let lastTimeEvent = 0;
   video.addEventListener('timeupdate', () => {
     const now = Date.now();
     if (now - lastTimeEvent < 250) return;
     lastTimeEvent = now;
-    const val = props && props.onTimeUpdate;
-    if (!val || val.type !== 'HandlerId') return;
-    try {
-      push_message_from_host(
-        JSON.stringify({
-          type: 'relay-video',
-          event: 'onTimeUpdate',
-          handlerId: val.value,
-          playerId,
-          currentTime: video.currentTime,
-          duration: video.duration,
-        }),
-      );
-      invokeHandler(val.value);
-    } catch (err) {
-      console.error('[relay-runtime] onTimeUpdate failed', err);
-    }
-    if (onAfterInvoke && consume_render_requested()) onAfterInvoke();
+    fireRelayVideoHandler(
+      props,
+      'onTimeUpdate',
+      playerId,
+      { currentTime: video.currentTime, duration: video.duration },
+      invokeHandler,
+      onAfterInvoke,
+    );
   });
 
   const playing = propBoolFromVnodePropsLoose(props, 'playing');
@@ -1068,7 +1166,137 @@ function buildRelayVideoPlayer(props, invokeHandler, onAfterInvoke) {
   }
 
   shell.appendChild(video);
+  shell.__relayVideoApi = {
+    engine: 'native',
+    play: () => video.play(),
+    pause: () => video.pause(),
+    seek: (t) => {
+      video.currentTime = t;
+    },
+  };
   return shell;
+}
+
+function spokenVideoError(err) {
+  if (err && typeof err.userMessage === 'string' && err.userMessage) return err.userMessage;
+  const code = err && err.code ? String(err.code) : '';
+  if (code === 'WEBCODECS_UNSUPPORTED' || code === 'SOURCE_TOO_LARGE') {
+    return 'Full quality needs a capable browser — switching to a compatibility stream.';
+  }
+  if (code === 'FETCH_FAILED') {
+    return 'The video file could not be downloaded. Trying another source.';
+  }
+  if (code === 'WASM_LOAD_FAILED' || code === 'ENGINE_MISSING') {
+    return 'This browser could not load the extended video engine.';
+  }
+  if (code === 'DEMUX_FAILED') {
+    return 'This file’s container could not be read.';
+  }
+  if (code === 'DECODE_FAILED' || code === 'UNDERRUN') {
+    return 'Video decode failed on this device.';
+  }
+  const msg = err && err.message ? String(err.message) : '';
+  if (msg) return msg.split(' (')[0];
+  return 'Playback failed.';
+}
+
+function mountWasmVideoPlayer(shell, props, invokeHandler, onAfterInvoke, src) {
+  const playerId = propStringFromVnodeProps(props, 'playerId') || `rvp-${Math.random().toString(36).slice(2)}`;
+  shell.dataset.relayEngine = 'wasm';
+  shell.dataset.relayPlayerId = playerId;
+  const note = document.createElement('div');
+  note.className = 'relay-video-player-loading';
+  note.setAttribute('role', 'status');
+  note.textContent = 'Loading extended video engine…';
+  shell.appendChild(note);
+
+  const modUrl = relayVideoWebModuleUrl();
+  import(/* webpackIgnore: true */ modUrl)
+    .then((mod) => {
+      const create = mod.createWasmPlayer || (mod.default && mod.default.createWasmPlayer);
+      if (!create) {
+        const err = new Error('relay-video-web missing createWasmPlayer');
+        err.code = 'ENGINE_MISSING';
+        err.userMessage =
+          'The extended video engine is missing from this site build. Switching to a compatibility stream.';
+        throw err;
+      }
+      return create(shell, src, {
+        wasmUrl: relayVideoWasmUrl(),
+        autoPlay: propBoolFromVnodePropsLoose(props, 'autoPlay') === true
+          || propBoolFromVnodePropsLoose(props, 'playing') === true,
+        onStatus: (msg) => {
+          try {
+            if (msg) note.textContent = msg;
+            else if (note.parentNode) note.remove();
+          } catch (_) {}
+        },
+        onPlay: () => fireRelayVideoHandler(props, 'onPlay', playerId, {}, invokeHandler, onAfterInvoke),
+        onPause: () => fireRelayVideoHandler(props, 'onPause', playerId, {}, invokeHandler, onAfterInvoke),
+        onEnded: () => fireRelayVideoHandler(props, 'onEnded', playerId, {}, invokeHandler, onAfterInvoke),
+        onError: (err) => {
+          try {
+            note.textContent = spokenVideoError(err);
+            if (!note.parentNode) shell.appendChild(note);
+          } catch (_) {}
+          fireRelayVideoHandler(props, 'onError', playerId, {}, invokeHandler, onAfterInvoke);
+        },
+        onUnderrun: (err) => {
+          try {
+            note.textContent = spokenVideoError(err);
+            if (!note.parentNode) shell.appendChild(note);
+          } catch (_) {}
+          fireRelayVideoHandler(props, 'onError', playerId, {}, invokeHandler, onAfterInvoke);
+        },
+        onTimeUpdate: (t, d) =>
+          fireRelayVideoHandler(
+            props,
+            'onTimeUpdate',
+            playerId,
+            { currentTime: t, duration: d },
+            invokeHandler,
+            onAfterInvoke,
+          ),
+      });
+    })
+    .then((api) => {
+      try {
+        if (note.parentNode) note.remove();
+      } catch (_) {}
+      shell.__relayVideoApi = api;
+      fireRelayVideoHandler(props, 'onLoadedMetadata', playerId, {}, invokeHandler, onAfterInvoke);
+      const cmdSeq = propNumberFromVnodeProps(props, 'commandSeq');
+      const cmd = propNumberFromVnodeProps(props, 'command');
+      const cmdArg = propNumberFromVnodeProps(props, 'commandArg');
+      if (cmdSeq != null && String(cmdSeq) !== shell.dataset.relayCommandSeq) {
+        shell.dataset.relayCommandSeq = String(cmdSeq);
+        if (cmd === 1 && api.play) api.play();
+        else if (cmd === 2 && api.pause) api.pause();
+        else if (cmd === 3 && cmdArg != null && api.seek) api.seek(cmdArg);
+      }
+    })
+    .catch((e) => {
+      console.warn('[relay-runtime] WASM video escalate failed', e);
+      try {
+        note.textContent = spokenVideoError(e);
+      } catch (_) {}
+      fireRelayVideoHandler(props, 'onError', playerId, {}, invokeHandler, onAfterInvoke);
+    });
+  return shell;
+}
+
+/**
+ * Build video shell for `relay-video-player` VNodes.
+ * Native HTML5 first; Matroska / unsupported containers escalate to relay-video-wasm + WebCodecs.
+ */
+function buildRelayVideoPlayer(props, invokeHandler, onAfterInvoke) {
+  const shell = document.createElement('div');
+  shell.className = 'relay-video-player-shell';
+  const src = resolveMediaUrl(propStringFromVnodeProps(props, 'src'));
+  if (src && !nativeCanPlayUrl(src)) {
+    return mountWasmVideoPlayer(shell, props, invokeHandler, onAfterInvoke, src);
+  }
+  return attachHtml5VideoPlayer(shell, props, invokeHandler, onAfterInvoke, src);
 }
 
 /** VNode PropValue.Bool from relay-runtime serde: `{ type: 'Bool', value: true }`. */
@@ -1144,7 +1372,15 @@ function elementChildNodes(parent) {
 }
 
 function expectedDomTag(tag) {
-  if (tag === 'relay-video-player' || tag === 'relay-audio-player' || tag === 'relay-hook-renderer') return 'DIV';
+  if (
+    tag === 'relay-video-player' ||
+    tag === 'relay-audio-player' ||
+    tag === 'relay-hook-renderer' ||
+    tag === 'relay-pop-image' ||
+    tag === 'relay-image-gallery'
+  ) {
+    return 'DIV';
+  }
   if (tag === 'fragment') return null;
   return String(tag || 'div').toUpperCase();
 }
@@ -1493,6 +1729,98 @@ export function applyVnodePatches(container, prevRoot, patches, invokeHandler, o
   return true;
 }
 
+/** Park-authored native builders (tag → build(props, invokeHandler, onAfterInvoke) => HTMLElement). */
+const PARK_NATIVE_BUILDERS = new Map();
+
+/**
+ * Register a park host builder for a custom VNode tag (e.g. `fb-affirmation`).
+ * Parks call this from `*.web.js` / `registry.web.js` — not from CleverScript.
+ * @param {string} tag
+ * @param {(props: object, invokeHandler: Function, onAfterInvoke: Function|null) => HTMLElement} buildFn
+ */
+export function registerParkNative(tag, buildFn) {
+  const t = String(tag || '').trim();
+  if (!t || typeof buildFn !== 'function') return;
+  PARK_NATIVE_BUILDERS.set(t, buildFn);
+}
+
+/** @param {string} tag */
+export function getParkNativeBuilder(tag) {
+  return PARK_NATIVE_BUILDERS.get(String(tag || '').trim()) || null;
+}
+
+export function listParkNativeTags() {
+  return Array.from(PARK_NATIVE_BUILDERS.keys());
+}
+
+try {
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__relayRegisterParkNative = registerParkNative;
+    globalThis.__relayGetParkNativeBuilder = getParkNativeBuilder;
+  }
+} catch (_) {
+  /* optional */
+}
+
+/**
+ * RN-style candidates for a module path: `Foo.web.js` / `Foo.android.js` then `Foo.js`.
+ * CleverScript stubs should stay on `Foo.js`; host builders are `Foo.web.js` and load via registry, not CS import.
+ * @param {string} pathKey
+ * @param {string} [platform] `web` | `android` | …
+ * @returns {string[]}
+ */
+export function platformModuleCandidates(pathKey, platform) {
+  const raw = String(pathKey || '').replace(/^\/+/, '');
+  if (!raw) return [];
+  const plat = String(platform || detectRelayHostPlatform()).trim() || 'web';
+  const out = [];
+  const m = raw.match(/^(.*)\.(jsx|js|yaml|yml)$/i);
+  if (m) {
+    const base = m[1];
+    const ext = m[2];
+    if (!/\.(web|android|ios|native)$/i.test(base)) {
+      out.push(`${base}.${plat}.${ext}`);
+    }
+  }
+  out.push(raw);
+  return out;
+}
+
+function detectRelayHostPlatform() {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.__relayHostPlatform) {
+      return String(globalThis.__relayHostPlatform);
+    }
+  } catch (_) {
+    /* optional */
+  }
+  return 'web';
+}
+
+function parkNativeTagFromProps(props) {
+  if (!props) return '';
+  const a = propStringFromVnodeProps(props, 'data-relay-park-native');
+  if (a) return a;
+  const b = propStringFromVnodeProps(props, 'dataRelayParkNative');
+  if (b) return b;
+  return '';
+}
+
+function tryBuildParkNative(tag, props, invokeHandler, onAfterInvoke) {
+  let builder = getParkNativeBuilder(tag);
+  if (!builder) {
+    const viaProp = parkNativeTagFromProps(props);
+    if (viaProp) builder = getParkNativeBuilder(viaProp);
+  }
+  if (!builder) return null;
+  try {
+    return builder(props || {}, invokeHandler, onAfterInvoke);
+  } catch (err) {
+    console.error('[relay-runtime] park native build failed:', tag, err);
+    return null;
+  }
+}
+
 export function vnodeToDom(v, invokeHandler = invoke_handler, onAfterInvoke = null) {
   if (!v) return null;
   if (v.Empty !== undefined) return null; // VNode::Empty
@@ -1518,6 +1846,20 @@ export function vnodeToDom(v, invokeHandler = invoke_handler, onAfterInvoke = nu
     if (tag === 'relay-audio-player') {
       return buildRelayAudioPlayer(props || {}, invokeHandler, onAfterInvoke);
     }
+    if (tag === 'relay-pop-image') {
+      try {
+        installRelayGalleryHost();
+      } catch (_) {}
+      return buildRelayPopImage(props || {});
+    }
+    if (tag === 'relay-image-gallery') {
+      try {
+        installRelayGalleryHost();
+      } catch (_) {}
+      return buildRelayImageGallery(props || {});
+    }
+    const parkEl = tryBuildParkNative(tag, props || {}, invokeHandler, onAfterInvoke);
+    if (parkEl) return parkEl;
     if (tag === 'fragment') {
       const frag = document.createDocumentFragment();
       for (const c of children || []) {
@@ -1539,6 +1881,20 @@ export function vnodeToDom(v, invokeHandler = invoke_handler, onAfterInvoke = nu
     if (rawTag === 'relay-audio-player') {
       return buildRelayAudioPlayer(v.props || {}, invokeHandler, onAfterInvoke);
     }
+    if (rawTag === 'relay-pop-image') {
+      try {
+        installRelayGalleryHost();
+      } catch (_) {}
+      return buildRelayPopImage(v.props || {});
+    }
+    if (rawTag === 'relay-image-gallery') {
+      try {
+        installRelayGalleryHost();
+      } catch (_) {}
+      return buildRelayImageGallery(v.props || {});
+    }
+    const parkEl2 = tryBuildParkNative(rawTag, v.props || {}, invokeHandler, onAfterInvoke);
+    if (parkEl2) return parkEl2;
     const el = createVnodeDomElement(rawTag);
     applyVnodeDomProps(el, rawTag, v.props, invokeHandler, onAfterInvoke);
     appendVnodeDomChildren(el, v.props, v.children, invokeHandler, onAfterInvoke);
