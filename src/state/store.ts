@@ -250,7 +250,7 @@ function loadPersistedShellTheme (): ThemeName {
     } catch (e) {
         console.error('Failed to load persisted shell theme:', e)
     }
-    return 'system'
+    return 'dark'
 }
 
 function loadPersistedHookTheme (): ThemeName {

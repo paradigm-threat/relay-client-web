@@ -47,21 +47,20 @@ export function TabBar({ onTabChange }: TabBarProps) {
   }
 
   return (
-    <TSDiv className="border-b border-[var(--border)] bg-[var(--bg)] overflow-x-auto overflow-y-hidden">
-      <TSDiv className="flex gap-1 p-0 min-h-11 items-center">
-        <TSDiv className="flex gap-1">
-          {tabs.map((tab) => {
-            const isActive = tab.id === activeTabId
-            const canFullscreen = !tab.isHome && tab.id !== 'settings' && tab.id !== 'test' && !tab.unsupported
-            return (
-              <TSDiv
-                key={tab.id}
-                className={`flex items-center gap-2 px-4 py-2 border border-b-2 rounded-t-lg cursor-pointer transition-all flex-shrink-0 min-w-32 max-w-60 ${isActive
-                  ? 'border-b-blue-500 font-semibold bg-[var(--bg-surface)]'
-                  : 'border-b-transparent'
-                  }`}
-                onClick={() => handleTabClick(tab.id)}
-              >
+    <TSDiv className="border-b border-[var(--border)]">
+      <TSDiv className="flex gap-1 overflow-x-auto overflow-y-hidden min-h-11 items-center">
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTabId
+          const canFullscreen = !tab.isHome && tab.id !== 'settings' && tab.id !== 'test' && !tab.unsupported
+          return (
+            <TSDiv
+              key={tab.id}
+              className={`flex items-center gap-2 px-4 py-2 border-b-2 cursor-pointer transition-all flex-shrink-0 min-w-32 max-w-60 ${isActive
+                ? 'border-b-[var(--accent)] font-semibold bg-[var(--bg-surface)]'
+                : 'border-b-transparent'
+                }`}
+              onClick={() => handleTabClick(tab.id)}
+            >
                 <TSDiv
                   tag="span"
                   className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-[var(--text)]"
@@ -94,8 +93,11 @@ export function TabBar({ onTabChange }: TabBarProps) {
               </TSDiv>
             )
           })}
-        </TSDiv>
-        <TSDiv className="ml-auto flex items-center gap-1 pr-2">
+      </TSDiv>
+      <TSDiv className="flex flex-wrap items-center gap-3 px-3 py-2">
+        <a className="relay-nav-link" href="/info">About</a>
+        <a className="relay-nav-link" href="https://myproblem.app" rel="noopener noreferrer">MyProblem</a>
+        <TSDiv className="flex flex-wrap items-center gap-1 ml-auto">
           {(['system', 'light', 'dark'] as const).map((key) => {
             const active = shellTheme === key
             const label = key === 'system' ? 'System' : key === 'light' ? 'Light' : 'Dark'
@@ -106,11 +108,7 @@ export function TabBar({ onTabChange }: TabBarProps) {
                 type="button"
                 data-testid={`chrome-theme-${key}`}
                 onClick={() => setShellTheme(key)}
-                className={`px-2 py-1 text-xs rounded border ${
-                  active
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-transparent text-[var(--text-secondary)] border-[var(--border)]'
-                }`}
+                className="relay-chip"
                 aria-pressed={active}
                 title={`${label} theme`}
               >

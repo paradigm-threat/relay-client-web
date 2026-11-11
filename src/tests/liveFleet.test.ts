@@ -21,7 +21,7 @@ test('defaultMasterOrigins is the live fleet', () => {
   const o = defaultMasterOrigins()
   assert.deepEqual(o, [
     'https://iad1.relaygateway.net',
-    'https://sjc1.relaygateway.net',
+    'https://ord1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
 })
@@ -44,25 +44,25 @@ test('user-added live node is kept', () => {
 
 test('stored lon1 is rewritten to iad1', () => {
   const next = migrateStoredPeerHosts([
-    'https://sjc1.relaygateway.net',
+    'https://ord1.relaygateway.net',
     'https://lon1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
   assert.deepEqual(next, [
-    'https://sjc1.relaygateway.net',
+    'https://ord1.relaygateway.net',
     'https://iad1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
 })
 
-test('stored dfw1 is rewritten to sjc1', () => {
+test('stored dfw1 is rewritten to ord1', () => {
   const next = migrateStoredPeerHosts([
     'https://dfw1.relaygateway.net',
     'https://iad1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
   assert.deepEqual(next, [
-    'https://sjc1.relaygateway.net',
+    'https://ord1.relaygateway.net',
     'https://iad1.relaygateway.net',
     'https://hkg1.relaygateway.net',
   ])
@@ -104,8 +104,8 @@ test('pickRepoMirror prefers healthy low-latency and rotates in-band', () => {
       statusRepos: [{ name: 'files', on_disk: true }],
     },
     {
-      host: 'https://sjc1.relaygateway.net',
-      nodeFqdn: 'sjc1.relaygateway.net',
+      host: 'https://ord1.relaygateway.net',
+      nodeFqdn: 'ord1.relaygateway.net',
       healthy: true,
       probes: [{ ok: true, latencyMs: 40 }],
       statusRepos: [{ name: 'files', on_disk: true }],
@@ -120,16 +120,16 @@ test('pickRepoMirror prefers healthy low-latency and rotates in-band', () => {
   ]
   const a = pickRepoMirror('files', peers, () => 0)
   const b = pickRepoMirror('files', peers, () => 1)
-  assert.equal(a, 'https://files.sjc1.relaygateway.net')
-  // iad1 is outside the 80ms/25% band of 40ms, so rotation stays on sjc1
-  assert.equal(b, 'https://files.sjc1.relaygateway.net')
+  assert.equal(a, 'https://files.ord1.relaygateway.net')
+  // iad1 is outside the 80ms/25% band of 40ms, so rotation stays on ord1
+  assert.equal(b, 'https://files.ord1.relaygateway.net')
 })
 
 test('pickRepoMirror rotates among close healthy mirrors', () => {
   const peers = [
     {
-      host: 'https://sjc1.relaygateway.net',
-      nodeFqdn: 'sjc1.relaygateway.net',
+      host: 'https://ord1.relaygateway.net',
+      nodeFqdn: 'ord1.relaygateway.net',
       healthy: true,
       probes: [{ ok: true, latencyMs: 50 }],
       statusRepos: [{ name: 'files', on_disk: true }],
@@ -144,7 +144,7 @@ test('pickRepoMirror rotates among close healthy mirrors', () => {
   ]
   const first = pickRepoMirror('files', peers, () => 0)
   const second = pickRepoMirror('files', peers, () => 1)
-  assert.equal(first, 'https://files.sjc1.relaygateway.net')
+  assert.equal(first, 'https://files.ord1.relaygateway.net')
   assert.equal(second, 'https://files.iad1.relaygateway.net')
 })
 
@@ -203,7 +203,7 @@ test('unsupportedMessage is explicit', () => {
 
 test('firstReachablePeer fails over in list order', () => {
   const peers = [
-    { host: 'https://sjc1.relaygateway.net', probes: [{ ok: false }] },
+    { host: 'https://ord1.relaygateway.net', probes: [{ ok: false }] },
     { host: 'https://iad1.relaygateway.net', probes: [{ ok: true, latencyMs: 80 }] },
     { host: 'https://hkg1.relaygateway.net', probes: [{ ok: true, latencyMs: 20 }] },
   ]

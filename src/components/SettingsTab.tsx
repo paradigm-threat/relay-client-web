@@ -268,11 +268,8 @@ export function SettingsTab() {
                             tag="button"
                             type="button"
                             onClick={() => setShellTheme(key)}
-                            className={`px-4 py-2 rounded text-sm font-medium border ${
-                                shellTheme === key
-                                    ? 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-[var(--bg-surface)] text-[var(--text)] border-[var(--border)]'
-                            }`}
+                            className="relay-chip"
+                            aria-pressed={shellTheme === key}
                         >
                             {key === 'system' ? 'System' : key === 'light' ? 'Light' : 'Dark'}
                         </TSDiv>
@@ -290,7 +287,7 @@ export function SettingsTab() {
                         tag="button"
                         type="button"
                         onClick={handleOpenTestHook}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded shadow text-sm font-medium"
+                        className="relay-btn relay-btn-primary"
                     >
                         Open in New Tab
                     </TSDiv>
@@ -322,7 +319,7 @@ export function SettingsTab() {
                             onChange={(e) => setSetting(e.target.checked ? 'server-only' : 'wasm')}
                         />
                         <TSDiv
-                            className="w-12 h-6 peer-focus:outline-none rounded-full peer peer-checked:bg-blue-600 transition-colors relative">
+                            className="relay-toggle w-12 h-6 rounded-full transition-colors relative">
                             <TSDiv
                                 className="absolute top-0.5 left-0.5 h-5 w-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-6" />
                         </TSDiv>

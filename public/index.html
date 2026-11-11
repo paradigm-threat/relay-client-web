@@ -1,38 +1,42 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Relay — Decentralized Web Stack</title>
-  <meta name="description" content="Relay is a decentralized Web3.0 stack and social network architecture. Browse repos, hooks, and peer gateways." />
-  <meta name="theme-color" content="#0f172a" />
+  <title>Relay client</title>
+  <meta name="description" content="Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes. MyProblem is built on Relay." />
+  <meta name="theme-color" content="#070d18" />
   <link rel="canonical" href="https://relaygateway.net/" />
-  <meta property="og:title" content="Relay — Decentralized Web Stack" />
-  <meta property="og:description" content="Relay is a decentralized Web3.0 stack and social network architecture." />
+  <meta property="og:title" content="Relay client" />
+  <meta property="og:description" content="Relay hosts git-backed websites, CleverScript hooks, and peer gateways. MyProblem is built on Relay." />
   <meta property="og:url" content="https://relaygateway.net/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Relay" />
   <link rel="icon" type="image/png" href="/icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,550;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/main.css" />
   <script type="module" crossorigin src="/assets/main.js"></script>
+  <style>
+    .fallback { max-width: 42rem; margin: 4rem auto; padding: 0 1.25rem; color: #f2f6ff; font-family: Manrope, system-ui, sans-serif; line-height: 1.5; }
+    .fallback h1 { font-family: Fraunces, Georgia, serif; font-weight: 550; letter-spacing: -0.02em; }
+    .fallback p { color: #b7c7dc; }
+    .fallback a { color: #5fd4a4; }
+  </style>
 </head>
 <body>
   <div id="root">
-    <main style="font-family: system-ui, sans-serif; max-width: 42rem; margin: 4rem auto; padding: 0 1rem; line-height: 1.5;">
+    <main class="fallback">
       <h1>Relay</h1>
-      <p>Relay is a decentralized Web3.0 stack and social network architecture. It hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes.</p>
-      <p>Use this client to browse repositories and connected peers. Documentation and source live in the <a href="https://gitlab.com/clevertree">clevertree GitLab group</a>.</p>
-      <ul>
-        <li><a href="https://gitlab.com/clevertree/relay-gateway">relay-gateway</a> — HTTP/git mesh node</li>
-        <li><a href="https://gitlab.com/clevertree/relay-client-web">relay-client-web</a> — this browser client</li>
-        <li><a href="https://clevertree.net/">CleverTree</a> — project hub</li>
-      </ul>
+      <p>Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes.</p>
+      <p>Use this client to browse repositories, or read <a href="/info">about Relay</a>. <a href="https://myproblem.app">MyProblem</a> is built on Relay.</p>
     </main>
   </div>
   <noscript>
-    <main style="font-family: system-ui, sans-serif; max-width: 42rem; margin: 4rem auto; padding: 0 1rem;">
+    <main class="fallback">
       <h1>Relay</h1>
-      <p>Relay is a decentralized Web3.0 stack and social network architecture. Enable JavaScript to use the interactive client, or visit peer documentation on GitLab under the clevertree group.</p>
+      <p>Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes. Enable JavaScript to use the client, or read <a href="/info">about Relay</a>.</p>
     </main>
   </noscript>
 </body>

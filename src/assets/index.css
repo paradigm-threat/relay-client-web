@@ -2,54 +2,72 @@
 @tailwind components;
 @tailwind utilities;
 
-:root, html.light {
-  --bg: #ffffff;
-  --bg-surface: #f9fafb;
-  --bg-secondary: #f3f4f6;
-  --text: #111827;
-  --text-secondary: #6b7280;
-  --border: #e5e7eb;
-  --bg-error: #fef2f2;
-  --text-error: #b91c1c;
-  --border-error: #fecaca;
-  --bg-code: #f3f4f6;
-  --text-code: #1f2937;
-  --chip-bg: #eff6ff;
-  --chip-text: #1d4ed8;
-  --status-ok-bg: #dcfce7;
-  --status-ok-text: #15803d;
-  --status-bad-bg: #fee2e2;
-  --status-bad-text: #b91c1c;
-  --status-warn-bg: #fef3c7;
-  --status-warn-text: #92400e;
-  color-scheme: light;
-}
-
-html.dark {
-  --bg: #111827;
-  --bg-surface: #1f2937;
-  --bg-secondary: #0f172a;
-  --text: #f9fafb;
-  --text-secondary: #9ca3af;
-  --border: #374151;
+:root, html.dark {
+  --bg: #070d18;
+  --bg-surface: #0f1a2c;
+  --bg-secondary: #0b1524;
+  --text: #f2f6ff;
+  --text-secondary: #b7c7dc;
+  --border: rgba(232, 240, 255, 0.12);
   --bg-error: #450a0a;
   --text-error: #fecaca;
   --border-error: #7f1d1d;
-  --bg-code: #0f172a;
+  --bg-code: #06101f;
   --text-code: #e5e7eb;
-  --chip-bg: #1e3a5f;
-  --chip-text: #93c5fd;
-  --status-ok-bg: #14532d;
-  --status-ok-text: #86efac;
-  --status-bad-bg: #7f1d1d;
+  --chip-bg: rgba(78, 184, 255, 0.14);
+  --chip-text: #4eb8ff;
+  --status-ok-bg: rgba(95, 212, 164, 0.16);
+  --status-ok-text: #5fd4a4;
+  --status-bad-bg: rgba(248, 113, 113, 0.16);
   --status-bad-text: #fecaca;
-  --status-warn-bg: #78350f;
-  --status-warn-text: #fde68a;
+  --status-warn-bg: rgba(240, 193, 75, 0.16);
+  --status-warn-text: #f0c14b;
+  --accent: #5fd4a4;
+  --accent-ink: #062016;
+  --warm: #f0c14b;
+  --ticket: #4eb8ff;
+  --focus: #7fe0b6;
+  --glow-blue: rgba(78, 184, 255, 0.18);
+  --glow-gold: rgba(240, 193, 75, 0.12);
+  --glow-mint: rgba(95, 212, 164, 0.14);
   color-scheme: dark;
 }
 
+html.light {
+  --bg: #f4f7fb;
+  --bg-surface: #ffffff;
+  --bg-secondary: #e7eef6;
+  --text: #0b1a2e;
+  --text-secondary: #3d516b;
+  --border: rgba(11, 26, 46, 0.12);
+  --bg-error: #fef2f2;
+  --text-error: #b91c1c;
+  --border-error: #fecaca;
+  --bg-code: #e8eef6;
+  --text-code: #0b1a2e;
+  --chip-bg: rgba(11, 108, 171, 0.1);
+  --chip-text: #0b6cab;
+  --status-ok-bg: rgba(18, 122, 82, 0.12);
+  --status-ok-text: #0f6b45;
+  --status-bad-bg: #fee2e2;
+  --status-bad-text: #b91c1c;
+  --status-warn-bg: rgba(138, 100, 16, 0.16);
+  --status-warn-text: #8a6410;
+  --accent: #127a52;
+  --accent-ink: #f4fff9;
+  --warm: #8a6410;
+  --ticket: #0b6cab;
+  --focus: #127a52;
+  --glow-blue: rgba(78, 184, 255, 0.16);
+  --glow-gold: rgba(240, 193, 75, 0.2);
+  --glow-mint: rgba(18, 122, 82, 0.1);
+  color-scheme: light;
+}
+
 :root {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -64,8 +82,16 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text);
+}
+
+body {
+  background-image:
+    radial-gradient(1100px 700px at 12% -10%, var(--glow-blue), transparent 55%),
+    radial-gradient(900px 600px at 88% 8%, var(--glow-gold), transparent 50%),
+    radial-gradient(800px 500px at 50% 110%, var(--glow-mint), transparent 45%);
+  background-attachment: fixed;
 }
 
 body {
@@ -79,7 +105,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
 }
 
@@ -91,4 +117,155 @@ input, select, textarea {
 
 input::placeholder {
   color: var(--text-secondary);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.relay-display {
+  font-family: var(--font-display);
+  font-weight: 550;
+  letter-spacing: -0.02em;
+}
+
+.relay-eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--warm);
+}
+
+.relay-lead {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.relay-nav-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.relay-nav-link:hover {
+  color: var(--text);
+}
+
+.relay-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  min-height: 2.5rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.relay-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.relay-btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.relay-btn-primary:hover {
+  filter: brightness(1.08);
+}
+
+.relay-btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.relay-btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.relay-chip {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.relay-chip[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.relay-home {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.relay-home-inner {
+  width: min(1080px, calc(100% - 2.5rem));
+  margin-inline: auto;
+  padding: 1.5rem 0 2.5rem;
+}
+
+.relay-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 1.25rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.relay-brand img {
+  border-radius: 0.55rem;
+  box-shadow: 0 0 0 1px rgba(78, 184, 255, 0.25), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.relay-card {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: linear-gradient(165deg, var(--bg-surface), transparent);
+  padding: 1.15rem 1.1rem 1.25rem;
+}
+
+.relay-input {
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text);
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.relay-toggle {
+  background: var(--bg-secondary);
+}
+
+.peer:checked + .relay-toggle {
+  background: var(--accent);
 }

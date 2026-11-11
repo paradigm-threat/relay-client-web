@@ -70,10 +70,7 @@ function App () {
   return (
     <PluginProvider plugin={webPlugin}>
       <SpaHistoryListener />
-      <TSDiv
-        className="flex flex-col w-screen h-screen"
-        style={{ background: 'var(--bg)', color: 'var(--text)' }}
-      >
+      <TSDiv className="flex flex-col w-screen h-screen">
         {!siteView && (
           <TSDiv data-testid="shell-chrome">
             <TabBar />
@@ -94,8 +91,8 @@ function App () {
             {!siteView && !activeTabId && (
               <TSDiv className="flex items-center justify-center h-full w-full">
                 <TSDiv className="text-center">
-                  <TSDiv tag='h2' className="mb-2 text-2xl font-semibold">No repositories open</TSDiv>
-                  <TSDiv tag='p' className="text-base">Select a repository from the home tab.</TSDiv>
+                  <TSDiv tag='h2' className="relay-display mb-2 text-2xl">No repositories open</TSDiv>
+                  <TSDiv tag='p' className="relay-lead">Select a repository from the home tab.</TSDiv>
                 </TSDiv>
               </TSDiv>
             )}

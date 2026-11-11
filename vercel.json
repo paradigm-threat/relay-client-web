@@ -19,6 +19,8 @@
       "status": 307,
       "headers": { "Location": "/icon.png" }
     },
+    { "src": "/info", "dest": "/info/index.html" },
+    { "src": "/info/", "dest": "/info/index.html" },
     {
       "src": "/(test-.*|debug-.*|embed.*|hooks/.*|wasm-.*|wasm/.*)",
       "headers": { "X-Robots-Tag": "noindex, nofollow" },
