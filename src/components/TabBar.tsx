@@ -95,7 +95,7 @@ export function TabBar({ onTabChange }: TabBarProps) {
           })}
       </TSDiv>
       <TSDiv className="flex flex-wrap items-center gap-3 px-3 py-2">
-        <a className="relay-nav-link" href="/info">About</a>
+        <a className="relay-nav-link" href="/">About</a>
         <a className="relay-nav-link" href="https://myproblem.app" rel="noopener noreferrer">MyProblem</a>
         <TSDiv className="flex flex-wrap items-center gap-1 ml-auto">
           {(['system', 'light', 'dark'] as const).map((key) => {

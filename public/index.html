@@ -3,41 +3,302 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Relay client</title>
+  <title>Relay — Mesh for git-backed sites</title>
   <meta name="description" content="Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes. MyProblem is built on Relay." />
   <meta name="theme-color" content="#070d18" />
   <link rel="canonical" href="https://relaygateway.net/" />
-  <meta property="og:title" content="Relay client" />
+  <meta property="og:title" content="Relay — Mesh for git-backed sites" />
   <meta property="og:description" content="Relay hosts git-backed websites, CleverScript hooks, and peer gateways. MyProblem is built on Relay." />
   <meta property="og:url" content="https://relaygateway.net/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Relay" />
+  <meta property="og:image" content="https://relaygateway.net/icon.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Relay — Mesh for git-backed sites" />
+  <meta name="twitter:description" content="Relay hosts git-backed websites, CleverScript hooks, and peer gateways. MyProblem is built on Relay." />
+  <meta name="twitter:image" content="https://relaygateway.net/icon.png" />
   <link rel="icon" type="image/png" href="/icon.png" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Relay",
+      "url": "https://relaygateway.net/",
+      "description": "Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes. MyProblem is built on Relay: no salaries, and no credit card expected unless someone wants to reward the person, the AI, or both."
+    }
+  </script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Relay",
+      "url": "https://relaygateway.net/",
+      "logo": "https://relaygateway.net/icon.png",
+      "sameAs": [
+        "https://github.com/paradigm-threat/relay",
+        "https://myproblem.app"
+      ]
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,550;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/main.css" />
-  <script type="module" crossorigin src="/assets/main.js"></script>
   <style>
-    .fallback { max-width: 42rem; margin: 4rem auto; padding: 0 1.25rem; color: #f2f6ff; font-family: Manrope, system-ui, sans-serif; line-height: 1.5; }
-    .fallback h1 { font-family: Fraunces, Georgia, serif; font-weight: 550; letter-spacing: -0.02em; }
-    .fallback p { color: #b7c7dc; }
-    .fallback a { color: #5fd4a4; }
+    :root {
+      --bg: #070d18;
+      --bg-elevated: #0f1a2c;
+      --ink: #f2f6ff;
+      --muted: #b7c7dc;
+      --accent: #5fd4a4;
+      --accent-deep: #1a8f64;
+      --ticket: #4eb8ff;
+      --warm: #f0c14b;
+      --line: rgba(232, 240, 255, 0.12);
+      --glow: rgba(78, 184, 255, 0.2);
+      --focus: #7fe0b6;
+      --font-display: "Fraunces", Georgia, serif;
+      --font-sans: "Manrope", system-ui, sans-serif;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100%;
+      color: var(--ink);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      background:
+        radial-gradient(1100px 700px at 12% -10%, rgba(78, 184, 255, 0.18), transparent 55%),
+        radial-gradient(900px 600px at 88% 8%, rgba(240, 193, 75, 0.12), transparent 50%),
+        radial-gradient(800px 500px at 50% 110%, rgba(95, 212, 164, 0.14), transparent 45%),
+        linear-gradient(180deg, #070d18 0%, #0b1524 42%, #070d18 100%);
+      background-attachment: fixed;
+    }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: #9aebc8; }
+    a:focus-visible, button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+    .skip-link {
+      position: absolute;
+      left: 0.75rem;
+      top: 0.75rem;
+      z-index: 10;
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #062016;
+      font-weight: 700;
+      text-decoration: none;
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); outline: 3px solid #fff; }
+    .site { width: min(1080px, calc(100% - 2.5rem)); margin-inline: auto; }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem 0 0.5rem;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .brand img {
+      border-radius: 0.55rem;
+      box-shadow: 0 0 0 1px rgba(78, 184, 255, 0.25), 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+    .nav-links { display: flex; flex-wrap: wrap; gap: 0.85rem 1.15rem; font-size: 0.9rem; }
+    .nav-links a { color: var(--muted); text-decoration: none; }
+    .nav-links a:hover { color: var(--ink); }
+    .hero { padding: 2.5rem 0 1rem; }
+    .eyebrow {
+      margin: 0 0 0.65rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--warm);
+    }
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      font-weight: 550;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin: 0 0 0.85rem;
+    }
+    .hero-lead {
+      margin: 0;
+      max-width: 38rem;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.55;
+    }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.35rem; }
+    .btn {
+      appearance: none;
+      border-radius: 999px;
+      padding: 0.85rem 1.35rem;
+      min-height: 2.75rem;
+      font: inherit;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-primary { background: var(--accent); color: #062016; border: none; }
+    .btn-primary:hover { background: #7fe0b6; color: #062016; }
+    .btn-secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    .btn-secondary:hover { border-color: rgba(95, 212, 164, 0.45); color: var(--accent); }
+    section { padding: 3.25rem 0; border-top: 1px solid var(--line); }
+    section h2 {
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+      letter-spacing: -0.02em;
+      font-weight: 550;
+      margin: 0 0 0.75rem;
+    }
+    .section-lead { color: var(--muted); font-size: 1.05rem; max-width: 38rem; margin: 0 0 1.75rem; line-height: 1.55; }
+    .cards {
+      display: grid;
+      gap: 1.15rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .card {
+      padding: 1.15rem 1.1rem 1.25rem;
+      border-radius: 1rem;
+      border: 1px solid var(--line);
+      background: linear-gradient(165deg, rgba(15, 26, 44, 0.95), rgba(7, 13, 24, 0.5));
+    }
+    .card p.label {
+      margin: 0 0 0.45rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .card h3 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 550;
+      margin: 0 0 0.45rem;
+    }
+    .card p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .nodes { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.55rem 0.95rem;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      background: rgba(15, 26, 44, 0.72);
+      font-size: 0.92rem;
+    }
+    .dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+    }
+    .footer {
+      padding: 2rem 0 2.75rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .footer-nav { display: flex; flex-wrap: wrap; gap: 0.35rem 0.85rem; margin-bottom: 0.75rem; }
+    .footer a { color: var(--ink); font-weight: 600; }
   </style>
 </head>
 <body>
-  <div id="root">
-    <main class="fallback">
-      <h1>Relay</h1>
-      <p>Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes.</p>
-      <p>Use this client to browse repositories, or read <a href="/info">about Relay</a>. <a href="https://myproblem.app">MyProblem</a> is built on Relay.</p>
-    </main>
-  </div>
-  <noscript>
-    <main class="fallback">
-      <h1>Relay</h1>
-      <p>Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes. Enable JavaScript to use the client, or read <a href="/info">about Relay</a>.</p>
-    </main>
-  </noscript>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site">
+    <div class="nav">
+      <a class="brand" href="/" aria-label="Relay">
+        <img src="/icon.png" alt="" width="36" height="36" />
+        <span>Relay</span>
+      </a>
+      <nav class="nav-links" aria-label="Page">
+        <a href="/app">Client</a>
+        <a href="https://myproblem.app">MyProblem</a>
+        <a href="https://github.com/paradigm-threat/relay">Source</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main">
+    <div class="site hero">
+      <p class="eyebrow">Decentralized web stack</p>
+      <h1>A mesh for git-backed sites</h1>
+      <p class="hero-lead">Relay hosts git-backed websites, CleverScript hooks, and peer gateways across a mesh of nodes. Open the client to browse repositories, or read how MyProblem is built on this network.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="/app">Open the client</a>
+        <a class="btn btn-secondary" href="https://myproblem.app">MyProblem</a>
+      </div>
+    </div>
+    <div class="site">
+      <section aria-labelledby="hosts-heading">
+        <h2 id="hosts-heading">What the mesh hosts</h2>
+        <p class="section-lead">Each node serves the same published repositories. The browser client at /app talks to whichever mirror answers.</p>
+        <div class="cards">
+          <article class="card">
+            <p class="label">Sites</p>
+            <h3>Git-backed websites</h3>
+            <p>Repositories publish as sites. The client lists them from the live catalog and opens each one in its own tab.</p>
+          </article>
+          <article class="card">
+            <p class="label">Hooks</p>
+            <h3>CleverScript</h3>
+            <p>Client hooks render in the browser through the Relay runtime, so a repo can ship its own page instead of a static export.</p>
+          </article>
+          <article class="card">
+            <p class="label">Nodes</p>
+            <h3>Peer gateways</h3>
+            <p>Gateways answer HTTP, share git state, and can cache content with IPFS. Add any node URL from the client.</p>
+          </article>
+        </div>
+      </section>
+      <section aria-labelledby="mesh-heading">
+        <h2 id="mesh-heading">Live mesh</h2>
+        <p class="section-lead">These nodes are the public masters. The client probes them and shows which mirror is connected.</p>
+        <ul class="nodes">
+          <li class="chip"><span class="dot" aria-hidden="true"></span>iad1.relaygateway.net</li>
+          <li class="chip"><span class="dot" aria-hidden="true"></span>ord1.relaygateway.net</li>
+          <li class="chip"><span class="dot" aria-hidden="true"></span>hkg1.relaygateway.net</li>
+        </ul>
+      </section>
+      <section aria-labelledby="product-heading">
+        <h2 id="product-heading">MyProblem is built on Relay</h2>
+        <p class="section-lead">MyProblem is the product that runs the Relay way. No salaries, and no card expected. If the help was good, a person can reward the person who helped, the AI that helped, or both. Relay stays the mesh.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://myproblem.app">Open myproblem.app</a>
+          <a class="btn btn-secondary" href="https://myproblem.app/how-we-run">How MyProblem is run</a>
+        </div>
+      </section>
+    </div>
+  </main>
+  <footer class="site footer" role="contentinfo">
+    <nav class="footer-nav" aria-label="Footer">
+      <a href="/app">Client</a>
+      <a href="https://myproblem.app">MyProblem</a>
+      <a href="https://github.com/paradigm-threat/relay">Source</a>
+    </nav>
+    <p>Relay hosts git-backed websites, CleverScript hooks, and peer gateways.</p>
+  </footer>
 </body>
 </html>

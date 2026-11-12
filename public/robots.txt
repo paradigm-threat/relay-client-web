@@ -1,5 +1,11 @@
 User-agent: *
 Allow: /
-Allow: /info
+Disallow: /app
+Disallow: /test-
+Disallow: /debug-
+Disallow: /embed
+Disallow: /hooks/
+Disallow: /wasm-
+Disallow: /wasm/
 
 Sitemap: https://relaygateway.net/sitemap.xml

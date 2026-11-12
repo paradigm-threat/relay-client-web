@@ -273,8 +273,8 @@ export async function bundle({ serve = false } = {}) {
       res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
       res.header('Access-Control-Expose-Headers', 'X-Hook-Path')
       
-      // Inject X-Hook-Path for discovery
-      if (req.method === 'OPTIONS' || req.path === '/') {
+      // Inject X-Hook-Path for discovery (marketing / and client /app)
+      if (req.method === 'OPTIONS' || req.path === '/' || req.path === '/app' || req.path === '/app/') {
         res.header('X-Hook-Path', '/hooks/client/get.jsx')
       }
 
@@ -303,14 +303,29 @@ export async function bundle({ serve = false } = {}) {
       }
     }
 
-    // Serve the main app from dist/ 
+    // Legacy /info marketing URL → homepage
+    app.get(['/info', '/info/'], (_req, res) => {
+      res.redirect(308, '/')
+    })
+
+    // Serve static dist (marketing at /, client at /app/)
     app.use(express.static(outDir, {
       index: 'index.html',
       dotfiles: 'allow'
     }))
 
-    // Fallback to index.html for SPA routing
+    // Client SPA fallback under /app
+    app.get(['/app', '/app/*'], (_req, res) => {
+      res.sendFile(path.join(outDir, 'app', 'index.html'))
+    })
+
+    // Unknown paths → marketing 404 page when present, else homepage
     app.get('*', (req, res) => {
+      const notFound = path.join(outDir, '404.html')
+      if (fs.existsSync(notFound)) {
+        res.status(404).sendFile(notFound)
+        return
+      }
       res.sendFile(path.join(outDir, 'index.html'))
     })
 

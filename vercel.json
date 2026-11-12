@@ -19,8 +19,30 @@
       "status": 307,
       "headers": { "Location": "/icon.png" }
     },
-    { "src": "/info", "dest": "/info/index.html" },
-    { "src": "/info/", "dest": "/info/index.html" },
+    {
+      "src": "/info/?",
+      "status": 308,
+      "headers": { "Location": "/" }
+    },
+    {
+      "src": "/",
+      "headers": {
+        "X-Hook-Path": "/hooks/client/get.jsx",
+        "Access-Control-Expose-Headers": "X-Hook-Path"
+      },
+      "continue": true
+    },
+    {
+      "src": "/app/?",
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow",
+        "X-Hook-Path": "/hooks/client/get.jsx",
+        "Access-Control-Expose-Headers": "X-Hook-Path"
+      },
+      "continue": true
+    },
+    { "src": "/app", "dest": "/app/index.html" },
+    { "src": "/app/", "dest": "/app/index.html" },
     {
       "src": "/(test-.*|debug-.*|embed.*|hooks/.*|wasm-.*|wasm/.*)",
       "headers": { "X-Robots-Tag": "noindex, nofollow" },
